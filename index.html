@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>계약만료 취소 — 싱글 뷰</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.9.0/tabler-icons.min.css" />
+</head>
+<body>
+  <div class="page">
+
+    <!-- 상단 헤더 -->
+    <div class="topbar">
+      <div class="topbar-left">
+        <i class="ti ti-file-invoice page-icon" aria-hidden="true"></i>
+        <span class="page-title">계약만료 취소 — 싱글 뷰</span>
+        <span class="badge-expire">
+          <i class="ti ti-lock" aria-hidden="true"></i> 마감 잠금 상태
+        </span>
+      </div>
+      <div class="search-bar">
+        <input type="text" id="contractInput" value="CONT-2024-00892" placeholder="계약번호 입력" />
+        <button id="searchBtn">
+          <i class="ti ti-search" aria-hidden="true"></i> 조회
+        </button>
+      </div>
+    </div>
+
+    <!-- 계약 정보 카드 -->
+    <div class="contract-card" id="contractCard">
+      <div class="contract-header">
+        <div>
+          <div class="contract-id" id="contractId">계약번호 CONT-2024-00892 · re_cont_master</div>
+          <div class="contract-name" id="contractName">(주)에이스유통 — 서울시 강남구 역삼동 B동 502호</div>
+        </div>
+        <div class="status-locked">
+          <i class="ti ti-alert-triangle" aria-hidden="true"></i>
+          <span>이 계약은 결산 마감 처리되어 직접 수정이 불가합니다</span>
+        </div>
+      </div>
+      <div class="contract-meta">
+        <div class="meta-item">
+          <div class="meta-label">계약 기간</div>
+          <div class="meta-value" id="metaPeriod">2022.01.01 ~ 2024.12.31</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-label">만료 처리일</div>
+          <div class="meta-value" id="metaExpiry">2024.12.31</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-label">보증금</div>
+          <div class="meta-value" id="metaDeposit">₩ 50,000,000</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-label">date_last_chg</div>
+          <div class="meta-value mono" id="metaLastChg">2025-01-03 09:12</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4단계 진행 표시바 -->
+    <div class="steps-bar">
+      <div class="step step-done">
+        <div class="step-num"><i class="ti ti-check" aria-hidden="true"></i></div>
+        <span class="step-label">1 · 요청 감지</span>
+      </div>
+      <i class="ti ti-chevron-right step-arrow" aria-hidden="true"></i>
+      <div class="step step-done">
+        <div class="step-num"><i class="ti ti-check" aria-hidden="true"></i></div>
+        <span class="step-label">2 · 종속 데이터 체크</span>
+      </div>
+      <i class="ti ti-chevron-right step-arrow" aria-hidden="true"></i>
+      <div class="step step-active" id="step3">
+        <div class="step-num">3</div>
+        <span class="step-label">3 · 역순 취소 (Rollback)</span>
+      </div>
+      <i class="ti ti-chevron-right step-arrow" aria-hidden="true"></i>
+      <div class="step step-pending" id="step4">
+        <div class="step-num">4</div>
+        <span class="step-label">4 · 마스터 복원</span>
+      </div>
+    </div>
+
+    <!-- 메인 그리드 -->
+    <div class="main-grid">
+
+      <!-- 종속 데이터 트리 -->
+      <div class="tree-panel">
+        <div class="panel-header">
+          <span class="panel-title">
+            <i class="ti ti-sitemap" aria-hidden="true"></i> 종속 데이터 현황 트리
+          </span>
+          <div class="legend">
+            <div class="leg-item"><span class="dot dot-red"></span>삭제 필요</div>
+            <div class="leg-item"><span class="dot dot-yellow"></span>확인 필요</div>
+            <div class="leg-item"><span class="dot dot-green"></span>취소 완료</div>
+          </div>
+        </div>
+
+        <!-- 루트 노드 (계약 마스터) -->
+        <div class="tree-root">
+          <div class="root-row">
+            <div class="root-icon"><i class="ti ti-building" aria-hidden="true"></i></div>
+            <div>
+              <div class="root-label">계약 마스터 · 호실 상세</div>
+              <div class="root-sub">re_cont_master / re_room_master / re_cont_detail</div>
+            </div>
+            <div class="root-status">
+              <span class="dot dot-red"></span>
+              <span class="root-status-text">마감 잠금</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 하위 데이터 아이템 목록 -->
+        <div class="tree-items" id="treeItems">
+
+          <div class="tree-item" data-key="cash" data-status="red">
+            <div class="item-row">
+              <span class="tree-indent"><i class="ti ti-corner-down-right" aria-hidden="true"></i></span>
+              <span class="item-status red"></span>
+              <div class="item-info">
+                <div class="item-name">현금영수증</div>
+                <div class="item-table">tb_cash_receipt / tb_cash_receipt_mst / tb_cash_temp</div>
+              </div>
+              <span class="item-count" id="count-cash">3건</span>
+              <div class="item-actions">
+                <button class="btn-action btn-del" data-key="cash">
+                  <i class="ti ti-api" aria-hidden="true"></i> 자진취소 API
+                </button>
+              </div>
+            </div>
+            <div class="item-detail" id="detail-cash">
+              <div class="detail-box">
+                <div class="detail-title"><i class="ti ti-info-circle" aria-hidden="true"></i> 처리 안내</div>
+                <p>수납 취소 이전에 파생된 현금영수증을 <strong>자진 취소 API</strong>를 통해 먼저 처리해야 합니다.<br/>
+                   취소 후 <code>tb_cash_temp</code> 상태 코드를 <code>CANCEL</code>로 업데이트합니다.</p>
+                <div class="detail-actions">
+                  <button class="btn-confirm" data-key="cash">
+                    <i class="ti ti-circle-check" aria-hidden="true"></i> 취소 처리 완료 확인
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tree-item" data-key="tax" data-status="red">
+            <div class="item-row">
+              <span class="tree-indent"><i class="ti ti-corner-down-right" aria-hidden="true"></i></span>
+              <span class="item-status red"></span>
+              <div class="item-info">
+                <div class="item-name">세금계산서</div>
+                <div class="item-table">tb_tax / tb_tax_line / re_bill_request</div>
+              </div>
+              <span class="item-count" id="count-tax">2건</span>
+              <div class="item-actions">
+                <button class="btn-action btn-del" data-key="tax">
+                  <i class="ti ti-receipt-refund" aria-hidden="true"></i> 수정계산서 발행
+                </button>
+              </div>
+            </div>
+            <div class="item-detail" id="detail-tax">
+              <div class="detail-box">
+                <div class="detail-title"><i class="ti ti-info-circle" aria-hidden="true"></i> 처리 안내</div>
+                <p>국세청 승인번호를 먼저 확인한 후 <strong>마이너스(수정) 세금계산서</strong>를 발행하거나 발행 취소 연동을 처리합니다.<br/>
+                   <code>tb_tax</code>의 승인 상태를 확인 후 진행하세요.</p>
+                <div class="detail-actions">
+                  <button class="btn-confirm" data-key="tax">
+                    <i class="ti ti-circle-check" aria-hidden="true"></i> 취소 처리 완료 확인
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tree-item" data-key="receipt" data-status="yellow">
+            <div class="item-row">
+              <span class="tree-indent"><i class="ti ti-corner-down-right" aria-hidden="true"></i></span>
+              <span class="item-status yellow"></span>
+              <div class="item-info">
+                <div class="item-name">수납 데이터</div>
+                <div class="item-table">re_bill_receipt / re_bill_receipt_acc_if</div>
+              </div>
+              <span class="item-count" id="count-receipt">5건</span>
+              <div class="item-actions">
+                <button class="btn-action btn-check" data-key="receipt">
+                  <i class="ti ti-link" aria-hidden="true"></i> 원장 연동 확인
+                </button>
+              </div>
+            </div>
+            <div class="item-detail" id="detail-receipt">
+              <div class="detail-box">
+                <div class="detail-title"><i class="ti ti-info-circle" aria-hidden="true"></i> 처리 안내</div>
+                <p>청구 데이터에 매핑된 <strong>수납 및 입금 원장 연동</strong>을 취소 처리합니다.<br/>
+                   현금영수증·세금계산서 취소 완료 후 진행해야 합니다.</p>
+                <div class="detail-actions">
+                  <button class="btn-confirm" data-key="receipt">
+                    <i class="ti ti-circle-check" aria-hidden="true"></i> 취소 처리 완료 확인
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tree-item" data-key="bill" data-status="yellow">
+            <div class="item-row">
+              <span class="tree-indent"><i class="ti ti-corner-down-right" aria-hidden="true"></i></span>
+              <span class="item-status yellow"></span>
+              <div class="item-info">
+                <div class="item-name">청구 데이터</div>
+                <div class="item-table">re_bill_request / re_bill_request_acc_if</div>
+              </div>
+              <span class="item-count" id="count-bill">7건</span>
+              <div class="item-actions">
+                <button class="btn-action btn-check" data-key="bill">
+                  <i class="ti ti-arrows-exchange" aria-hidden="true"></i> 역추적 확인
+                </button>
+              </div>
+            </div>
+            <div class="item-detail" id="detail-bill">
+              <div class="detail-box">
+                <div class="detail-title"><i class="ti ti-info-circle" aria-hidden="true"></i> 처리 안내</div>
+                <p>변경 기준월에 속하는 <strong>약정금액 및 실비 청구 데이터</strong>를 역추적 후 삭제 처리합니다.<br/>
+                   수납 데이터 취소 완료 후 진행해야 합니다.</p>
+                <div class="detail-actions">
+                  <button class="btn-confirm" data-key="bill">
+                    <i class="ti ti-circle-check" aria-hidden="true"></i> 취소 처리 완료 확인
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tree-item" data-key="refund" data-status="green">
+            <div class="item-row">
+              <span class="tree-indent"><i class="ti ti-corner-down-right" aria-hidden="true"></i></span>
+              <span class="item-status green"></span>
+              <div class="item-info">
+                <div class="item-name">보증금 정산</div>
+                <div class="item-table">re_cont_refund</div>
+              </div>
+              <span class="item-count" id="count-refund">1건</span>
+              <div class="item-actions">
+                <button class="btn-action btn-done" disabled>
+                  <i class="ti ti-circle-check" aria-hidden="true"></i> 취소 완료
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 오른쪽 패널 -->
+      <div class="side-panel">
+
+        <!-- 역순 롤백 가이드 -->
+        <div class="guide-panel">
+          <div class="panel-header">
+            <span class="panel-title">
+              <i class="ti ti-list-check" aria-hidden="true"></i> 역순 롤백 가이드
+            </span>
+          </div>
+          <div class="guide-steps">
+            <div class="guide-step" id="gs-cash">
+              <div class="gs-num gs-red">1</div>
+              <div class="gs-content">
+                <div class="gs-title">현금영수증 자진 취소</div>
+                <div class="gs-desc">수납 취소 전 파생된 현금영수증 자진 취소 API를 먼저 호출합니다.</div>
+                <span class="gs-tag gs-tag-red">tb_cash_receipt</span>
+              </div>
+            </div>
+            <div class="guide-step" id="gs-tax">
+              <div class="gs-num gs-red">2</div>
+              <div class="gs-content">
+                <div class="gs-title">세금계산서 발행 취소</div>
+                <div class="gs-desc">국세청 승인번호 확인 후 마이너스(수정) 계산서를 발행합니다.</div>
+                <span class="gs-tag gs-tag-red">tb_tax / tb_tax_line</span>
+              </div>
+            </div>
+            <div class="guide-step" id="gs-receipt">
+              <div class="gs-num gs-yellow">3</div>
+              <div class="gs-content">
+                <div class="gs-title">수납 및 원장 취소</div>
+                <div class="gs-desc">청구에 매핑된 수납 입금 원장 연동을 취소 처리합니다.</div>
+                <span class="gs-tag gs-tag-yellow">re_bill_receipt</span>
+              </div>
+            </div>
+            <div class="guide-step" id="gs-bill">
+              <div class="gs-num gs-yellow">4</div>
+              <div class="gs-content">
+                <div class="gs-title">청구 데이터 삭제</div>
+                <div class="gs-desc">변경 기준월 약정금액 및 실비 청구 역추적 후 삭제합니다.</div>
+                <span class="gs-tag gs-tag-yellow">re_bill_request</span>
+              </div>
+            </div>
+            <div class="guide-step" id="gs-master">
+              <div class="gs-num gs-gray">5</div>
+              <div class="gs-content">
+                <div class="gs-title">마스터 이력 동기화</div>
+                <div class="gs-desc">re_cont_master의 date_chg, date_last_chg를 최종 업데이트합니다.</div>
+                <span class="gs-tag gs-tag-gray">re_cont_master</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 잠금 해제 버튼 영역 -->
+        <div class="unlock-panel">
+          <button class="btn-unlock" id="unlockBtn" disabled>
+            <i class="ti ti-lock-open" aria-hidden="true"></i> 계약만료 잠금 해제
+          </button>
+          <div class="info-box" id="infoBox">
+            <i class="ti ti-info-circle" aria-hidden="true"></i>
+            <span id="infoText">현금영수증·세금계산서·수납 데이터 삭제 완료 후 잠금 해제가 활성화됩니다.</span>
+          </div>
+        </div>
+
+        <!-- 이력 로그 -->
+        <div class="log-panel">
+          <div class="panel-header">
+            <span class="panel-title">
+              <i class="ti ti-history" aria-hidden="true"></i> 처리 이력
+            </span>
+            <button class="btn-clear-log" id="clearLogBtn">초기화</button>
+          </div>
+          <div class="log-list" id="logList">
+            <div class="log-empty">처리 완료 항목이 여기에 기록됩니다.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 잠금 해제 성공 모달 -->
+    <div class="modal-backdrop" id="modalBackdrop" style="display:none;">
+      <div class="modal">
+        <div class="modal-icon"><i class="ti ti-lock-open" aria-hidden="true"></i></div>
+        <div class="modal-title">계약만료 잠금 해제 완료</div>
+        <div class="modal-desc">
+          계약번호 <strong id="modalContractId">CONT-2024-00892</strong>의 마감 잠금이 해제되었습니다.<br/>
+          <code>re_cont_master</code>의 <code>date_chg</code>, <code>date_last_chg</code>가 업데이트되었습니다.
+        </div>
+        <div class="modal-meta" id="modalMeta"></div>
+        <button class="modal-close" id="modalClose">
+          <i class="ti ti-check" aria-hidden="true"></i> 확인
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
