@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rollback Simulator — 계약만료 취소</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.9.0/tabler-icons.min.css" />
+  <style>
+    /* ============================================================
+       ROOT & RESET
+    ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d1117;
+      --bg2:       #161b22;
+      --bg3:       #21262d;
+      --border:    #30363d;
+      --border2:   #3d444d;
+      --text:      #e6edf3;
+      --muted:     #7d8590;
+      --accent:    #58a6ff;
+      --green:     #3fb950;
+      --red:       #f85149;
+      --yellow:    #d29922;
+      --purple:    #bc8cff;
+      --orange:    #ffa657;
+
+      --font-mono: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+      --font-ui:   -apple-system, 'Segoe UI', system-ui, sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 13px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ============================================================
+       TOP BAR
+    ============================================================ */
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 20px;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .topbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .topbar-brand .icon {
+      width: 28px; height: 28px;
+      background: linear-gradient(135deg, var(--accent), var(--purple));
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; color: #fff;
+    }
+    .topbar-sep { flex: 1; }
+    .contract-select-wrap {
+      display: flex; align-items: center; gap: 8px;
+    }
+    .contract-select-wrap label { color: var(--muted); font-size: 12px; }
+    .contract-select {
+      background: var(--bg3); border: 1px solid var(--border2);
+      color: var(--text); border-radius: 6px; padding: 5px 10px;
+      font-size: 12px; font-family: var(--font-mono); cursor: pointer;
+      outline: none;
+    }
+    .contract-select:focus { border-color: var(--accent); }
+
+    /* playback controls */
+    .playback {
+      display: flex; align-items: center; gap: 6px;
+    }
+    .pb-btn {
+      display: flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px; border-radius: 6px; border: 1px solid var(--border2);
+      background: var(--bg3); color: var(--text); cursor: pointer;
+      font-size: 13px; transition: all .15s;
+    }
+    .pb-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .pb-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .pb-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .speed-label { color: var(--muted); font-size: 11px; white-space: nowrap; }
+    .speed-select {
+      background: var(--bg3); border: 1px solid var(--border2);
+      color: var(--text); border-radius: 6px; padding: 4px 8px;
+      font-size: 11px; cursor: pointer; outline: none;
+    }
+
+    /* ============================================================
+       PIPELINE HEADER (step progress)
+    ============================================================ */
+    .pipeline-bar {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      padding: 14px 20px;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      flex-shrink: 0;
+    }
+    .pipe-step {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 11px;
+      white-space: nowrap;
+      transition: all .3s;
+      position: relative;
+    }
+    .pipe-step .ps-num {
+      width: 18px; height: 18px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700;
+      background: var(--border); color: var(--muted);
+      flex-shrink: 0;
+    }
+    .pipe-step .ps-label { color: var(--muted); }
+    .pipe-step .ps-table { color: var(--muted); font-family: var(--font-mono); font-size: 10px; }
+
+    .pipe-step.pending {}
+    .pipe-step.active {
+      border-color: var(--accent);
+      background: rgba(88,166,255,.08);
+    }
+    .pipe-step.active .ps-num { background: var(--accent); color: #fff; }
+    .pipe-step.active .ps-label { color: var(--accent); font-weight: 600; }
+    .pipe-step.done {
+      border-color: var(--green);
+      background: rgba(63,185,80,.06);
+    }
+    .pipe-step.done .ps-num { background: var(--green); color: #fff; }
+    .pipe-step.done .ps-label { color: var(--green); }
+    .pipe-step.error {
+      border-color: var(--red);
+      background: rgba(248,81,73,.07);
+    }
+    .pipe-step.error .ps-num { background: var(--red); color: #fff; }
+    .pipe-step.error .ps-label { color: var(--red); }
+
+    .pipe-arrow {
+      color: var(--border2); font-size: 16px;
+      padding: 0 4px;
+      flex-shrink: 0;
+    }
+
+    /* ============================================================
+       MAIN LAYOUT
+    ============================================================ */
+    .main {
+      display: grid;
+      grid-template-columns: 340px 1fr 300px;
+      grid-template-rows: 1fr;
+      gap: 1px;
+      flex: 1;
+      background: var(--border);
+      overflow: hidden;
+    }
+    .panel {
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-head {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 14px;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      font-size: 11px; font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase; letter-spacing: .06em;
+      flex-shrink: 0;
+    }
+    .panel-head i { font-size: 14px; }
+    .panel-head-actions { margin-left: auto; display: flex; gap: 6px; }
+
+    /* ============================================================
+       LEFT: DB STATE PANEL
+    ============================================================ */
+    .db-panel-body {
+      flex: 1; overflow-y: auto; padding: 14px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .db-table-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      transition: border-color .3s;
+    }
+    .db-table-card.processing { border-color: var(--yellow); }
+    .db-table-card.done { border-color: var(--green); }
+    .db-table-card.error { border-color: var(--red); }
+
+    .db-table-head {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+    }
+    .db-table-head .tbl-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--muted); flex-shrink: 0;
+      transition: background .3s;
+    }
+    .db-table-card.processing .tbl-dot { background: var(--yellow); }
+    .db-table-card.done .tbl-dot { background: var(--green); }
+    .db-table-card.error .tbl-dot { background: var(--red); }
+
+    .db-table-head .tbl-name {
+      font-family: var(--font-mono); font-size: 11px; color: var(--text); font-weight: 600;
+    }
+    .db-table-head .tbl-rows {
+      margin-left: auto; font-size: 10px; color: var(--muted); font-family: var(--font-mono);
+    }
+    .db-table-head .tbl-status-badge {
+      font-size: 9px; padding: 1px 7px; border-radius: 10px;
+      font-weight: 600; letter-spacing: .03em;
+      background: var(--bg3); color: var(--muted);
+      transition: all .3s;
+    }
+    .db-table-card.processing .tbl-status-badge {
+      background: rgba(210,153,34,.15); color: var(--yellow);
+    }
+    .db-table-card.done .tbl-status-badge {
+      background: rgba(63,185,80,.12); color: var(--green);
+    }
+    .db-table-card.error .tbl-status-badge {
+      background: rgba(248,81,73,.12); color: var(--red);
+    }
+
+    .db-table-rows { padding: 6px 12px 8px; display: flex; flex-direction: column; gap: 3px; }
+    .db-row {
+      display: flex; align-items: center; gap: 6px;
+      font-family: var(--font-mono); font-size: 10px;
+      padding: 2px 0;
+      opacity: 1; transition: all .4s;
+    }
+    .db-row.cancelled {
+      opacity: .4;
+      text-decoration: line-through;
+    }
+    .db-row.cancelling {
+      color: var(--yellow);
+      animation: blink 0.6s ease-in-out infinite;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .3; }
+    }
+    .db-row .row-id { color: var(--accent); min-width: 80px; }
+    .db-row .row-status {
+      font-size: 9px; padding: 1px 6px; border-radius: 8px;
+      font-weight: 600;
+    }
+    .row-status.active { background: rgba(63,185,80,.15); color: var(--green); }
+    .row-status.cancelled { background: rgba(248,81,73,.12); color: var(--red); }
+    .db-row .row-amt { color: var(--muted); margin-left: auto; }
+
+    /* ============================================================
+       CENTER: SQL CONSOLE
+    ============================================================ */
+    .console-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.7;
+      background: #0a0e14;
+    }
+    .console-body::-webkit-scrollbar { width: 6px; }
+    .console-body::-webkit-scrollbar-track { background: transparent; }
+    .console-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+    .c-line { display: flex; gap: 10px; }
+    .c-prompt { color: var(--green); flex-shrink: 0; }
+    .c-text {}
+    .c-comment { color: var(--muted); }
+    .c-keyword { color: var(--purple); }
+    .c-table { color: var(--orange); }
+    .c-value { color: var(--green); }
+    .c-string { color: var(--yellow); }
+    .c-number { color: var(--accent); }
+    .c-success { color: var(--green); }
+    .c-error { color: var(--red); }
+    .c-info { color: var(--accent); }
+    .c-warn { color: var(--yellow); }
+
+    .c-block { margin-bottom: 10px; }
+    .c-block-header {
+      color: var(--muted); font-size: 10px; padding: 4px 0;
+      border-top: 1px solid var(--border); margin-bottom: 4px;
+    }
+
+    /* typewriter cursor */
+    .cursor {
+      display: inline-block;
+      width: 7px; height: 13px;
+      background: var(--accent);
+      margin-left: 1px;
+      vertical-align: middle;
+      animation: blink-cursor .7s step-end infinite;
+    }
+    @keyframes blink-cursor {
+      0%, 100% { opacity: 1; } 50% { opacity: 0; }
+    }
+
+    /* result table */
+    .sql-result-table {
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 4px 0 6px;
+      font-size: 10px;
+    }
+    .sql-result-table thead { background: var(--bg3); }
+    .sql-result-table th, .sql-result-table td {
+      padding: 3px 10px; text-align: left;
+      border-right: 1px solid var(--border);
+    }
+    .sql-result-table th { color: var(--muted); font-weight: 600; }
+    .sql-result-table td { color: var(--text); }
+    .sql-result-table tr:not(:last-child) td { border-bottom: 1px solid var(--border); }
+    .sql-result-table .val-green { color: var(--green); }
+    .sql-result-table .val-red { color: var(--red); }
+    .sql-result-table .val-yellow { color: var(--yellow); }
+    .sql-result-table .val-mono { font-family: var(--font-mono); }
+
+    /* rows affected badge */
+    .rows-affected {
+      display: inline-block;
+      font-size: 10px; padding: 1px 8px;
+      border-radius: 4px;
+      background: rgba(63,185,80,.12);
+      color: var(--green);
+      margin: 2px 0;
+    }
+    .exec-time {
+      color: var(--muted); font-size: 10px; margin-left: 8px;
+    }
+
+    .console-input-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 16px;
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .console-input-bar .ci-prompt { color: var(--green); font-family: var(--font-mono); font-size: 12px; }
+    .console-input {
+      flex: 1; background: transparent; border: none; outline: none;
+      color: var(--text); font-family: var(--font-mono); font-size: 12px;
+    }
+
+    /* ============================================================
+       RIGHT: LOG & SUMMARY PANEL
+    ============================================================ */
+    .right-body {
+      flex: 1; overflow-y: auto; display: flex; flex-direction: column;
+    }
+
+    /* timing diagram */
+    .timing-section {
+      padding: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .timing-title { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+    .timing-row {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+    }
+    .timing-label { font-size: 10px; color: var(--muted); width: 70px; flex-shrink: 0; text-align: right; font-family: var(--font-mono); }
+    .timing-bar-wrap {
+      flex: 1; height: 14px; background: var(--bg3);
+      border-radius: 3px; overflow: hidden; position: relative;
+    }
+    .timing-bar-fill {
+      height: 100%; border-radius: 3px;
+      background: var(--muted);
+      width: 0; transition: width .6s ease;
+      position: relative;
+    }
+    .timing-bar-fill.active { background: var(--accent); animation: shimmer 1.5s infinite; }
+    .timing-bar-fill.done { background: var(--green); }
+    .timing-bar-fill.error { background: var(--red); }
+    @keyframes shimmer {
+      0% { filter: brightness(1); } 50% { filter: brightness(1.3); } 100% { filter: brightness(1); }
+    }
+    .timing-ms { font-size: 9px; color: var(--muted); font-family: var(--font-mono); width: 36px; text-align: right; }
+
+    /* event log */
+    .log-section { flex: 1; display: flex; flex-direction: column; }
+    .log-body { flex: 1; overflow-y: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 4px; }
+    .log-entry {
+      display: flex; align-items: flex-start; gap: 8px;
+      font-size: 10px; line-height: 1.5; padding: 4px 0;
+      border-bottom: 1px solid rgba(48,54,61,.5);
+      animation: fadeIn .3s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .log-entry .le-dot {
+      width: 6px; height: 6px; border-radius: 50%; margin-top: 4px; flex-shrink: 0;
+    }
+    .le-dot.info { background: var(--accent); }
+    .le-dot.success { background: var(--green); }
+    .le-dot.warn { background: var(--yellow); }
+    .le-dot.error { background: var(--red); }
+    .log-entry .le-time { color: var(--muted); font-family: var(--font-mono); flex-shrink: 0; }
+    .log-entry .le-msg { color: var(--text); flex: 1; }
+    .log-entry .le-tag {
+      font-size: 9px; padding: 1px 5px; border-radius: 3px;
+      background: var(--bg3); color: var(--muted); flex-shrink: 0; font-family: var(--font-mono);
+    }
+
+    /* summary section */
+    .summary-section {
+      padding: 12px 14px;
+      border-top: 1px solid var(--border);
+      background: var(--bg2);
+      flex-shrink: 0;
+    }
+    .summary-title { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+    .summary-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .summary-item {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 6px; padding: 8px 10px;
+    }
+    .summary-item .si-val {
+      font-size: 18px; font-weight: 700; font-family: var(--font-mono); color: var(--text);
+    }
+    .summary-item .si-label { font-size: 10px; color: var(--muted); margin-top: 2px; }
+    .si-val.green { color: var(--green); }
+    .si-val.yellow { color: var(--yellow); }
+    .si-val.red { color: var(--red); }
+
+    /* unlock button */
+    .unlock-section {
+      padding: 12px 14px;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .unlock-btn {
+      width: 100%; padding: 10px;
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--muted);
+      font-size: 12px; font-weight: 600; cursor: not-allowed;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: all .3s;
+    }
+    .unlock-btn.ready {
+      background: linear-gradient(135deg, rgba(63,185,80,.15), rgba(63,185,80,.05));
+      border-color: var(--green); color: var(--green); cursor: pointer;
+    }
+    .unlock-btn.ready:hover {
+      background: linear-gradient(135deg, rgba(63,185,80,.25), rgba(63,185,80,.1));
+    }
+    .unlock-btn.completed {
+      background: linear-gradient(135deg, rgba(63,185,80,.2), rgba(63,185,80,.08));
+      border-color: var(--green); color: var(--green); cursor: default;
+    }
+
+    /* ============================================================
+       MODAL
+    ============================================================ */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,.7);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100; backdrop-filter: blur(4px);
+    }
+    .modal {
+      background: var(--bg2); border: 1px solid var(--border2);
+      border-radius: 12px; padding: 32px;
+      max-width: 420px; width: 90%;
+      box-shadow: 0 24px 80px rgba(0,0,0,.6);
+      animation: popIn .3s cubic-bezier(.34,1.56,.64,1);
+    }
+    @keyframes popIn {
+      from { transform: scale(.85); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .modal-icon {
+      width: 56px; height: 56px;
+      background: rgba(63,185,80,.15); border: 1px solid rgba(63,185,80,.3);
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 26px; color: var(--green); margin: 0 auto 16px;
+    }
+    .modal-title { text-align: center; font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .modal-desc { text-align: center; color: var(--muted); font-size: 12px; line-height: 1.6; }
+    .modal-code {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 8px; padding: 14px; margin: 16px 0;
+      font-family: var(--font-mono); font-size: 11px; line-height: 1.8;
+      color: var(--text);
+    }
+    .modal-code .mk { color: var(--purple); }
+    .modal-code .mv { color: var(--green); }
+    .modal-close {
+      width: 100%; padding: 10px;
+      background: var(--green); border: none;
+      border-radius: 8px; color: #fff;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      transition: opacity .15s;
+    }
+    .modal-close:hover { opacity: .85; }
+
+    /* scrollbar global */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+    /* toast notification */
+    .toast {
+      position: fixed; bottom: 20px; right: 20px;
+      background: var(--bg2); border: 1px solid var(--border2);
+      border-radius: 8px; padding: 10px 16px;
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.4);
+      animation: slideUp .3s ease;
+      z-index: 200;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .toast.success { border-color: var(--green); }
+    .toast.error { border-color: var(--red); }
+    .toast.warn { border-color: var(--yellow); }
+  </style>
+</head>
+<body>
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="topbar-brand">
+      <div class="icon"><i class="ti ti-database"></i></div>
+      Rollback Simulator
+    </div>
+    <div style="color:var(--muted); font-size:11px; padding-left:4px;">계약만료 취소 — DB 시뮬레이션</div>
+    <div class="topbar-sep"></div>
+
+    <div class="contract-select-wrap">
+      <label>계약번호</label>
+      <select class="contract-select" id="contractSelect">
+        <option value="CONT-2024-00892">CONT-2024-00892</option>
+        <option value="CONT-2023-00441">CONT-2023-00441</option>
+      </select>
+    </div>
+
+    <div class="playback">
+      <button class="pb-btn" id="btnReset" title="초기화"><i class="ti ti-refresh"></i></button>
+      <button class="pb-btn" id="btnStep" title="단계 실행"><i class="ti ti-player-skip-forward"></i></button>
+      <button class="pb-btn" id="btnPlay" title="자동 실행"><i class="ti ti-player-play"></i></button>
+      <span class="speed-label">속도</span>
+      <select class="speed-select" id="speedSelect">
+        <option value="2000">0.5×</option>
+        <option value="1200" selected>1×</option>
+        <option value="600">2×</option>
+        <option value="300">4×</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- PIPELINE BAR -->
+  <div class="pipeline-bar" id="pipelineBar">
+    <!-- rendered by JS -->
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- LEFT: DB State -->
+    <div class="panel">
+      <div class="panel-head">
+        <i class="ti ti-database"></i> DB 상태 뷰어
+        <div class="panel-head-actions">
+          <span style="font-size:10px; color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0;">
+            실시간 테이블 상태
+          </span>
+        </div>
+      </div>
+      <div class="db-panel-body" id="dbPanel">
+        <!-- rendered by JS -->
+      </div>
+    </div>
+
+    <!-- CENTER: SQL Console -->
+    <div class="panel">
+      <div class="panel-head">
+        <i class="ti ti-terminal-2"></i> SQL 실행 콘솔
+        <div class="panel-head-actions">
+          <button class="pb-btn" id="btnClearConsole" title="콘솔 초기화" style="width:24px;height:24px;font-size:11px;">
+            <i class="ti ti-trash"></i>
+          </button>
+        </div>
+      </div>
+      <div class="console-body" id="consoleBody">
+        <div class="c-block">
+          <div style="color:var(--muted); font-size:11px; padding: 20px 0 10px; text-align:center; line-height:2;">
+            <div style="font-size:28px; margin-bottom:8px;">⚡</div>
+            <div style="color:var(--text);">Rollback Simulator 준비됨</div>
+            <div>▶ 재생 버튼 또는 단계 버튼으로 시뮬레이션을 시작하세요</div>
+          </div>
+        </div>
+      </div>
+      <div class="console-input-bar">
+        <span class="ci-prompt">$</span>
+        <input class="console-input" id="consoleInput" placeholder="SQL 명령 직접 입력 (Ctrl+Enter 실행)..." readonly />
+      </div>
+    </div>
+
+    <!-- RIGHT: Log & Summary -->
+    <div class="panel">
+      <div class="panel-head">
+        <i class="ti ti-activity"></i> 실행 현황
+      </div>
+      <div class="right-body">
+
+        <!-- timing -->
+        <div class="timing-section">
+          <div class="timing-title">실행 타임라인</div>
+          <div id="timingRows"><!-- rendered by JS --></div>
+        </div>
+
+        <!-- summary -->
+        <div class="summary-section">
+          <div class="summary-title">집계</div>
+          <div class="summary-grid">
+            <div class="summary-item">
+              <div class="si-val green" id="sumCompleted">0</div>
+              <div class="si-label">완료 단계</div>
+            </div>
+            <div class="summary-item">
+              <div class="si-val yellow" id="sumPending">5</div>
+              <div class="si-label">대기 단계</div>
+            </div>
+            <div class="summary-item">
+              <div class="si-val" id="sumRows">0</div>
+              <div class="si-label">처리 행 수</div>
+            </div>
+            <div class="summary-item">
+              <div class="si-val" id="sumTime">0ms</div>
+              <div class="si-label">총 실행 시간</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- log -->
+        <div class="log-section">
+          <div class="panel-head" style="border-top:1px solid var(--border);">
+            <i class="ti ti-history"></i> 이벤트 로그
+            <div class="panel-head-actions">
+              <button class="pb-btn" id="btnClearLog" style="width:24px;height:24px;font-size:11px;">
+                <i class="ti ti-x"></i>
+              </button>
+            </div>
+          </div>
+          <div class="log-body" id="logBody">
+            <div style="color:var(--muted); font-size:10px; padding-top:8px;">이벤트 없음</div>
+          </div>
+        </div>
+
+        <!-- unlock -->
+        <div class="unlock-section">
+          <button class="unlock-btn" id="unlockBtn">
+            <i class="ti ti-lock"></i> 계약만료 잠금 해제
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MODAL -->
+  <div class="modal-backdrop" id="modalBackdrop" style="display:none;">
+    <div class="modal">
+      <div class="modal-icon"><i class="ti ti-check"></i></div>
+      <div class="modal-title">롤백 완료</div>
+      <div class="modal-desc">계약만료 취소가 성공적으로 처리되었습니다.</div>
+      <div class="modal-code" id="modalCode"></div>
+      <button class="modal-close" id="modalCloseBtn">확인</button>
+    </div>
+  </div>
+
+<script>
+'use strict';
+
+/* ============================================================
+   CONTRACT DATA
+============================================================ */
+const DB = {
+  'CONT-2024-00892': {
+    name: '(주)에이스유통',
+    period: '2022.01.01 ~ 2024.12.31',
+    expiry: '2024.12.31',
+    deposit: 50000000,
+    tables: {
+      tb_cash_receipt: {
+        label: '현금영수증',
+        rows: [
+          { id: 'CR-001', amount: '₩1,200,000', status: 'ISSUED' },
+          { id: 'CR-002', amount: '₩800,000',   status: 'ISSUED' },
+          { id: 'CR-003', amount: '₩600,000',   status: 'ISSUED' },
+        ]
+      },
+      tb_tax: {
+        label: '세금계산서',
+        rows: [
+          { id: 'TAX-2024-001', amount: '₩2,200,000', status: 'APPROVED' },
+          { id: 'TAX-2024-002', amount: '₩1,800,000', status: 'APPROVED' },
+        ]
+      },
+      re_bill_receipt: {
+        label: '수납 데이터',
+        rows: [
+          { id: 'RCP-0811', amount: '₩2,600,000', status: 'RECEIVED' },
+          { id: 'RCP-0812', amount: '₩2,200,000', status: 'RECEIVED' },
+          { id: 'RCP-0813', amount: '₩1,800,000', status: 'RECEIVED' },
+          { id: 'RCP-0814', amount: '₩1,200,000', status: 'RECEIVED' },
+          { id: 'RCP-0815', amount: '₩900,000',   status: 'RECEIVED' },
+        ]
+      },
+      re_bill_request: {
+        label: '청구 데이터',
+        rows: [
+          { id: 'BILL-0401', amount: '₩2,600,000', status: 'BILLED' },
+          { id: 'BILL-0402', amount: '₩2,200,000', status: 'BILLED' },
+          { id: 'BILL-0403', amount: '₩1,800,000', status: 'BILLED' },
+          { id: 'BILL-0404', amount: '₩1,200,000', status: 'BILLED' },
+          { id: 'BILL-0405', amount: '₩900,000',   status: 'BILLED' },
+          { id: 'BILL-0406', amount: '₩600,000',   status: 'BILLED' },
+          { id: 'BILL-0407', amount: '₩400,000',   status: 'BILLED' },
+        ]
+      },
+      re_cont_master: {
+        label: '계약 마스터',
+        rows: [
+          { id: 'CONT-2024-00892', amount: '만료잠금', status: 'EXPIRED' },
+        ]
+      },
+    }
+  },
+  'CONT-2023-00441': {
+    name: '(주)한라테크',
+    period: '2021.06.01 ~ 2023.12.31',
+    expiry: '2023.12.31',
+    deposit: 30000000,
+    tables: {
+      tb_cash_receipt: {
+        label: '현금영수증',
+        rows: [
+          { id: 'CR-201', amount: '₩500,000', status: 'ISSUED' },
+        ]
+      },
+      tb_tax: {
+        label: '세금계산서',
+        rows: [
+          { id: 'TAX-2023-031', amount: '₩1,100,000', status: 'APPROVED' },
+        ]
+      },
+      re_bill_receipt: {
+        label: '수납 데이터',
+        rows: [
+          { id: 'RCP-1201', amount: '₩1,100,000', status: 'RECEIVED' },
+          { id: 'RCP-1202', amount: '₩900,000',   status: 'RECEIVED' },
+          { id: 'RCP-1203', amount: '₩500,000',   status: 'RECEIVED' },
+        ]
+      },
+      re_bill_request: {
+        label: '청구 데이터',
+        rows: [
+          { id: 'BILL-1201', amount: '₩1,100,000', status: 'BILLED' },
+          { id: 'BILL-1202', amount: '₩900,000',   status: 'BILLED' },
+          { id: 'BILL-1203', amount: '₩500,000',   status: 'BILLED' },
+          { id: 'BILL-1204', amount: '₩200,000',   status: 'BILLED' },
+        ]
+      },
+      re_cont_master: {
+        label: '계약 마스터',
+        rows: [
+          { id: 'CONT-2023-00441', amount: '만료잠금', status: 'EXPIRED' },
+        ]
+      },
+    }
+  }
+};
+
+/* ============================================================
+   STEPS DEFINITION
+============================================================ */
+function buildSteps(contractKey) {
+  const data = DB[contractKey];
+  const cashCount = data.tables.tb_cash_receipt.rows.length;
+  const taxCount  = data.tables.tb_tax.rows.length;
+  const rcpCount  = data.tables.re_bill_receipt.rows.length;
+  const billCount = data.tables.re_bill_request.rows.length;
+
+  return [
+    {
+      key: 'check',
+      label: '종속 데이터 체크',
+      table: 'ALL TABLES',
+      color: 'accent',
+      rows: 0,
+      ms: 120,
+      sql: [
+        { type: 'comment', text: '-- [STEP 1] 종속 데이터 현황 조회' },
+        { type: 'sql', text: `SELECT table_name, COUNT(*) AS row_count\nFROM (\n  SELECT 'tb_cash_receipt' AS table_name FROM tb_cash_receipt WHERE cont_id = '${contractKey}'\n  UNION ALL\n  SELECT 'tb_tax' FROM tb_tax WHERE cont_id = '${contractKey}'\n  UNION ALL\n  SELECT 're_bill_receipt' FROM re_bill_receipt WHERE cont_id = '${contractKey}'\n  UNION ALL\n  SELECT 're_bill_request' FROM re_bill_request WHERE cont_id = '${contractKey}'\n) t GROUP BY table_name;` },
+        { type: 'result', headers: ['table_name','row_count'], rows: [
+          ['tb_cash_receipt', cashCount],
+          ['tb_tax', taxCount],
+          ['re_bill_receipt', rcpCount],
+          ['re_bill_request', billCount],
+        ]},
+        { type: 'info', text: `✔  총 ${cashCount+taxCount+rcpCount+billCount}건 종속 데이터 감지 — 역순 롤백 시작` },
+      ],
+      affects: [],
+      logType: 'info',
+      logMsg: `종속 데이터 ${cashCount+taxCount+rcpCount+billCount}건 감지`,
+    },
+    {
+      key: 'cash',
+      label: '현금영수증 취소',
+      table: 'tb_cash_receipt',
+      color: 'red',
+      rows: cashCount,
+      ms: 340 + cashCount * 80,
+      sql: [
+        { type: 'comment', text: '-- [STEP 2] 현금영수증 자진취소 API 호출' },
+        { type: 'comment', text: `-- 대상: ${cashCount}건` },
+        { type: 'sql', text: `CALL sp_cash_receipt_cancel(\n  p_cont_id    => '${contractKey}',\n  p_reason     => 'CONTRACT_EXPIRED_ROLLBACK',\n  p_updated_by => 'SYSTEM'\n);` },
+        { type: 'progress', label: '국세청 API 통신 중...', duration: 800 },
+        { type: 'sql', text: `UPDATE tb_cash_receipt\n   SET status = 'CANCELLED',\n       cancel_dt = NOW(),\n       cancel_rsn = 'CONTRACT_EXPIRED_ROLLBACK'\n WHERE cont_id = '${contractKey}'\n   AND status = 'ISSUED';` },
+        { type: 'affected', count: cashCount, ms: 12 },
+        { type: 'sql', text: `UPDATE tb_cash_temp\n   SET status_cd = 'CANCEL'\n WHERE cont_id = '${contractKey}';` },
+        { type: 'affected', count: cashCount, ms: 8 },
+        { type: 'success', text: `✔  현금영수증 ${cashCount}건 취소 완료` },
+      ],
+      affects: ['tb_cash_receipt'],
+      logType: 'success',
+      logMsg: `현금영수증 ${cashCount}건 취소 완료`,
+    },
+    {
+      key: 'tax',
+      label: '세금계산서 취소',
+      table: 'tb_tax',
+      color: 'orange',
+      rows: taxCount,
+      ms: 280 + taxCount * 100,
+      sql: [
+        { type: 'comment', text: '-- [STEP 3] 세금계산서 수정(마이너스) 발행' },
+        { type: 'comment', text: `-- 국세청 승인번호 확인 → 수정계산서 발행` },
+        { type: 'sql', text: `SELECT tax_id, approval_no, issue_dt, amount\n  FROM tb_tax\n WHERE cont_id = '${contractKey}'\n   AND status = 'APPROVED';` },
+        { type: 'result', headers: ['tax_id','approval_no','amount'], rows: data.tables.tb_tax.rows.map(r => [r.id, 'NTS-'+Math.random().toString(36).slice(2,8).toUpperCase(), r.amount])},
+        { type: 'progress', label: '수정세금계산서 발행 API 연동 중...', duration: 600 },
+        { type: 'sql', text: `UPDATE tb_tax t\n   SET t.status = 'CANCELLED',\n       t.cancel_dt = NOW()\n  FROM tb_tax_line tl\n WHERE t.cont_id = '${contractKey}'\n   AND tl.tax_id = t.tax_id;` },
+        { type: 'affected', count: taxCount, ms: 15 },
+        { type: 'success', text: `✔  세금계산서 ${taxCount}건 수정 발행 완료` },
+      ],
+      affects: ['tb_tax'],
+      logType: 'success',
+      logMsg: `세금계산서 ${taxCount}건 취소 처리`,
+    },
+    {
+      key: 'receipt',
+      label: '수납 데이터 취소',
+      table: 're_bill_receipt',
+      color: 'yellow',
+      rows: rcpCount,
+      ms: 200 + rcpCount * 60,
+      sql: [
+        { type: 'comment', text: '-- [STEP 4] 수납 데이터 및 원장 연동 취소' },
+        { type: 'sql', text: `BEGIN TRANSACTION;` },
+        { type: 'sql', text: `-- 원장 연동 인터페이스 취소\nDELETE FROM re_bill_receipt_acc_if\n WHERE cont_id = '${contractKey}';` },
+        { type: 'affected', count: rcpCount, ms: 9 },
+        { type: 'sql', text: `UPDATE re_bill_receipt\n   SET status = 'CANCELLED',\n       cancel_dt = NOW()\n WHERE cont_id = '${contractKey}'\n   AND status = 'RECEIVED';` },
+        { type: 'affected', count: rcpCount, ms: 11 },
+        { type: 'sql', text: `COMMIT;` },
+        { type: 'success', text: `✔  수납 ${rcpCount}건 취소 및 원장 연동 해제 완료` },
+      ],
+      affects: ['re_bill_receipt'],
+      logType: 'success',
+      logMsg: `수납 데이터 ${rcpCount}건 취소`,
+    },
+    {
+      key: 'bill',
+      label: '청구 데이터 삭제',
+      table: 're_bill_request',
+      color: 'yellow',
+      rows: billCount,
+      ms: 180 + billCount * 50,
+      sql: [
+        { type: 'comment', text: '-- [STEP 5] 청구 데이터 역추적 후 삭제' },
+        { type: 'sql', text: `BEGIN TRANSACTION;` },
+        { type: 'sql', text: `DELETE FROM re_bill_request_acc_if\n WHERE cont_id = '${contractKey}';` },
+        { type: 'affected', count: billCount, ms: 7 },
+        { type: 'sql', text: `DELETE FROM re_bill_request\n WHERE cont_id = '${contractKey}'\n   AND status = 'BILLED';` },
+        { type: 'affected', count: billCount, ms: 14 },
+        { type: 'sql', text: `COMMIT;` },
+        { type: 'success', text: `✔  청구 데이터 ${billCount}건 역추적 삭제 완료` },
+      ],
+      affects: ['re_bill_request'],
+      logType: 'warn',
+      logMsg: `청구 데이터 ${billCount}건 삭제`,
+    },
+    {
+      key: 'master',
+      label: '마스터 복원',
+      table: 're_cont_master',
+      color: 'green',
+      rows: 1,
+      ms: 150,
+      sql: [
+        { type: 'comment', text: '-- [STEP 6] 계약 마스터 이력 동기화 및 잠금 해제' },
+        { type: 'sql', text: `UPDATE re_cont_master\n   SET status     = 'ACTIVE',\n       date_chg   = NOW(),\n       date_last_chg = NOW(),\n       updated_by = 'SYSTEM',\n       lock_flag  = 'N'\n WHERE cont_id = '${contractKey}';` },
+        { type: 'affected', count: 1, ms: 5 },
+        { type: 'sql', text: `UPDATE re_room_master\n   SET cont_status = 'VACANT',\n       cont_end_dt = NULL\n WHERE cont_id = '${contractKey}';` },
+        { type: 'affected', count: 1, ms: 4 },
+        { type: 'success', text: `✔  마스터 복원 완료 — 계약만료 잠금 해제` },
+      ],
+      affects: ['re_cont_master'],
+      logType: 'success',
+      logMsg: `마스터 복원 및 잠금 해제 완료`,
+    },
+  ];
+}
+
+/* ============================================================
+   STATE
+============================================================ */
+let state = {
+  contractKey: 'CONT-2024-00892',
+  steps: [],
+  currentStep: -1, // -1 = 미시작
+  stepStatus: {},  // key -> 'pending'|'active'|'done'|'error'
+  rowStatus: {},   // tableName -> row[] with cancelled flag
+  isPlaying: false,
+  playTimer: null,
+  totalRows: 0,
+  totalMs: 0,
+  timingMs: {},    // key -> ms
+  timingMaxMs: 1,
+  logs: [],
+};
+
+/* ============================================================
+   DOM
+============================================================ */
+const pipelineBar    = document.getElementById('pipelineBar');
+const dbPanel        = document.getElementById('dbPanel');
+const consoleBody    = document.getElementById('consoleBody');
+const timingRows     = document.getElementById('timingRows');
+const logBody        = document.getElementById('logBody');
+const sumCompleted   = document.getElementById('sumCompleted');
+const sumPending     = document.getElementById('sumPending');
+const sumRows        = document.getElementById('sumRows');
+const sumTime        = document.getElementById('sumTime');
+const unlockBtn      = document.getElementById('unlockBtn');
+const modalBackdrop  = document.getElementById('modalBackdrop');
+const modalCode      = document.getElementById('modalCode');
+const btnPlay        = document.getElementById('btnPlay');
+const btnStep        = document.getElementById('btnStep');
+const btnReset       = document.getElementById('btnReset');
+const contractSelect = document.getElementById('contractSelect');
+const speedSelect    = document.getElementById('speedSelect');
+
+function getSpeed() { return parseInt(speedSelect.value, 10); }
+
+/* ============================================================
+   INIT
+============================================================ */
+function init(key) {
+  state.contractKey = key;
+  state.steps = buildSteps(key);
+  state.currentStep = -1;
+  state.isPlaying = false;
+  if (state.playTimer) clearTimeout(state.playTimer);
+
+  // step status
+  state.stepStatus = {};
+  state.steps.forEach(s => state.stepStatus[s.key] = 'pending');
+
+  // row status (deep copy)
+  state.rowStatus = {};
+  const tbl = DB[key].tables;
+  Object.keys(tbl).forEach(tn => {
+    state.rowStatus[tn] = tbl[tn].rows.map(r => ({ ...r, cancelled: false, cancelling: false }));
+  });
+
+  state.totalRows = 0;
+  state.totalMs = 0;
+  state.timingMs = {};
+  state.steps.forEach(s => { state.timingMs[s.key] = 0; });
+  state.timingMaxMs = Math.max(...state.steps.map(s => s.ms));
+  state.logs = [];
+
+  renderAll();
+  consoleBody.innerHTML = `
+    <div style="color:var(--muted); font-size:11px; padding: 20px 0 10px; text-align:center; line-height:2;">
+      <div style="font-size:28px; margin-bottom:8px;">⚡</div>
+      <div style="color:var(--text);">Rollback Simulator 준비됨 — ${key}</div>
+      <div>▶ 재생 버튼 또는 단계 버튼으로 시뮬레이션을 시작하세요</div>
+    </div>`;
+
+  btnPlay.classList.remove('active');
+  btnPlay.innerHTML = '<i class="ti ti-player-play"></i>';
+  updateUnlockBtn();
+}
+
+/* ============================================================
+   RENDER ALL
+============================================================ */
+function renderAll() {
+  renderPipeline();
+  renderDbPanel();
+  renderTiming();
+  renderSummary();
+  renderLog();
+}
+
+/* --- pipeline --- */
+function renderPipeline() {
+  pipelineBar.innerHTML = state.steps.map((s, i) => {
+    const st = state.stepStatus[s.key];
+    return `
+      ${i > 0 ? '<span class="pipe-arrow"><i class="ti ti-chevron-right"></i></span>' : ''}
+      <div class="pipe-step ${st}" id="pipe-${s.key}">
+        <div class="ps-num">${st === 'done' ? '<i class="ti ti-check"></i>' : st === 'error' ? '<i class="ti ti-x"></i>' : i+1}</div>
+        <div>
+          <div class="ps-label">${s.label}</div>
+          <div class="ps-table">${s.table}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+/* --- db panel --- */
+function renderDbPanel() {
+  const tbl = DB[state.contractKey].tables;
+  dbPanel.innerHTML = Object.keys(tbl).map(tn => {
+    const rows = state.rowStatus[tn] || [];
+    const allCancelled = rows.length > 0 && rows.every(r => r.cancelled);
+    const anyCancelling = rows.some(r => r.cancelling);
+
+    // find which step affects this table
+    const affectingStep = state.steps.find(s => s.affects.includes(tn));
+    let cardClass = '';
+    if (affectingStep) {
+      const st = state.stepStatus[affectingStep.key];
+      if (st === 'active' || anyCancelling) cardClass = 'processing';
+      else if (st === 'done' || allCancelled) cardClass = 'done';
+    }
+    if (tn === 're_cont_master' && state.stepStatus['master'] === 'done') cardClass = 'done';
+
+    const cancelledCount = rows.filter(r => r.cancelled).length;
+    const badgeText = allCancelled ? 'CANCELLED' : anyCancelling ? 'PROCESSING' : '활성';
+    const rowsHtml = rows.map(r => {
+      const cls = r.cancelling ? 'cancelling' : r.cancelled ? 'cancelled' : '';
+      const statusCls = r.cancelled ? 'cancelled' : 'active';
+      const statusLabel = r.cancelled ? 'CANCEL' : r.status;
+      return `<div class="db-row ${cls}">
+        <span class="row-id">${r.id}</span>
+        <span class="row-status ${statusCls}">${statusLabel}</span>
+        <span class="row-amt">${r.amount}</span>
+      </div>`;
+    }).join('');
+
+    return `<div class="db-table-card ${cardClass}" id="dbc-${tn}">
+      <div class="db-table-head">
+        <span class="tbl-dot"></span>
+        <span class="tbl-name">${tn}</span>
+        <span class="tbl-rows">${cancelledCount}/${rows.length}</span>
+        <span class="tbl-status-badge">${badgeText}</span>
+      </div>
+      <div class="db-table-rows">${rowsHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+/* --- timing --- */
+function renderTiming() {
+  timingRows.innerHTML = state.steps.map(s => {
+    const ms = state.timingMs[s.key] || 0;
+    const st = state.stepStatus[s.key];
+    const pct = state.timingMaxMs > 0 ? (s.ms / state.timingMaxMs * 100) : 0;
+    const actualPct = ms > 0 ? (ms / state.timingMaxMs * 100) : 0;
+    const fillCls = st === 'done' ? 'done' : st === 'active' ? 'active' : '';
+
+    return `<div class="timing-row">
+      <div class="timing-label">${s.label.replace('세금계산서 취소','세금취소').replace('현금영수증 취소','현금취소').replace('수납 데이터 취소','수납취소').replace('청구 데이터 삭제','청구삭제').replace('마스터 복원','마스터').replace('종속 데이터 체크','체크')}</div>
+      <div class="timing-bar-wrap">
+        <div class="timing-bar-fill ${fillCls}" style="width:${actualPct}%"></div>
+      </div>
+      <div class="timing-ms">${ms > 0 ? ms+'ms' : ''}</div>
+    </div>`;
+  }).join('');
+}
+
+/* --- summary --- */
+function renderSummary() {
+  const done = Object.values(state.stepStatus).filter(s => s === 'done').length;
+  const pending = state.steps.length - done - (Object.values(state.stepStatus).filter(s => s === 'active').length);
+  sumCompleted.textContent = done;
+  sumPending.textContent = Math.max(0, pending);
+  sumRows.textContent = state.totalRows;
+  sumTime.textContent = state.totalMs > 0 ? state.totalMs + 'ms' : '0ms';
+}
+
+/* --- log --- */
+function renderLog() {
+  if (state.logs.length === 0) {
+    logBody.innerHTML = '<div style="color:var(--muted); font-size:10px; padding-top:8px;">이벤트 없음</div>';
+    return;
+  }
+  logBody.innerHTML = [...state.logs].reverse().map(l =>
+    `<div class="log-entry">
+      <div class="le-dot ${l.type}"></div>
+      <span class="le-time">${l.time}</span>
+      <span class="le-msg">${l.msg}</span>
+      <span class="le-tag">${l.tag || ''}</span>
+    </div>`
+  ).join('');
+}
+
+/* ============================================================
+   SQL CONSOLE OUTPUT
+============================================================ */
+let typewriterQueue = Promise.resolve();
+
+function appendConsoleBlock(step) {
+  const block = document.createElement('div');
+  block.className = 'c-block';
+  const header = document.createElement('div');
+  header.className = 'c-block-header';
+  header.textContent = `▶  ${step.label}  ·  ${now()}`;
+  block.appendChild(header);
+  consoleBody.appendChild(block);
+  return block;
+}
+
+function renderSqlLine(container, item, speed) {
+  return new Promise(resolve => {
+    if (item.type === 'comment') {
+      const line = document.createElement('div');
+      line.className = 'c-line';
+      line.innerHTML = `<span class="c-comment">${escHtml(item.text)}</span>`;
+      container.appendChild(line);
+      setTimeout(resolve, 20);
+    } else if (item.type === 'sql') {
+      const line = document.createElement('div');
+      line.className = 'c-line';
+      line.style.whiteSpace = 'pre';
+      const prompt = document.createElement('span');
+      prompt.className = 'c-prompt';
+      prompt.textContent = '> ';
+      const textSpan = document.createElement('span');
+      textSpan.className = 'c-text';
+      const cursor = document.createElement('span');
+      cursor.className = 'cursor';
+      line.appendChild(prompt);
+      line.appendChild(textSpan);
+      line.appendChild(cursor);
+      container.appendChild(line);
+      scrollConsole();
+      // typewrite
+      const text = item.text;
+      let i = 0;
+      const delay = Math.max(4, Math.floor(speed / text.length * 0.3));
+      function tick() {
+        if (i < text.length) {
+          textSpan.textContent += text[i++];
+          scrollConsole();
+          setTimeout(tick, delay);
+        } else {
+          cursor.remove();
+          resolve();
+        }
+      }
+      tick();
+    } else if (item.type === 'result') {
+      const tbl = document.createElement('table');
+      tbl.className = 'sql-result-table';
+      tbl.innerHTML = `<thead><tr>${item.headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${
+        item.rows.map(r=>`<tr>${r.map(v=>`<td>${v}</td>`).join('')}</tr>`).join('')
+      }</tbody>`;
+      container.appendChild(tbl);
+      setTimeout(resolve, 30);
+    } else if (item.type === 'affected') {
+      const div = document.createElement('div');
+      div.innerHTML = `<span class="rows-affected">${item.count} rows affected</span><span class="exec-time">(${item.ms}ms)</span>`;
+      container.appendChild(div);
+      setTimeout(resolve, 20);
+    } else if (item.type === 'success') {
+      const line = document.createElement('div');
+      line.className = 'c-line';
+      line.innerHTML = `<span class="c-success">${escHtml(item.text)}</span>`;
+      container.appendChild(line);
+      setTimeout(resolve, 30);
+    } else if (item.type === 'info') {
+      const line = document.createElement('div');
+      line.className = 'c-line';
+      line.innerHTML = `<span class="c-info">${escHtml(item.text)}</span>`;
+      container.appendChild(line);
+      setTimeout(resolve, 20);
+    } else if (item.type === 'progress') {
+      const line = document.createElement('div');
+      line.className = 'c-line';
+      line.innerHTML = `<span class="c-warn">⏳ ${escHtml(item.label)}</span>`;
+      container.appendChild(line);
+      scrollConsole();
+      setTimeout(resolve, item.duration * (1200 / getSpeed()));
+    } else {
+      resolve();
+    }
+    scrollConsole();
+  });
+}
+
+function scrollConsole() {
+  consoleBody.scrollTop = consoleBody.scrollHeight;
+}
+
+/* ============================================================
+   STEP EXECUTION
+============================================================ */
+async function executeStep(stepIndex) {
+  if (stepIndex >= state.steps.length) return;
+  const step = state.steps[stepIndex];
+  state.currentStep = stepIndex;
+
+  // mark active
+  state.stepStatus[step.key] = 'active';
+  renderPipeline();
+
+  // mark table rows as cancelling
+  step.affects.forEach(tn => {
+    if (state.rowStatus[tn]) {
+      state.rowStatus[tn].forEach(r => r.cancelling = true);
+    }
+  });
+  if (step.key === 'master') {
+    if (state.rowStatus['re_cont_master']) {
+      state.rowStatus['re_cont_master'].forEach(r => r.cancelling = true);
+    }
+  }
+  renderDbPanel();
+
+  // console output
+  const block = appendConsoleBlock(step);
+  const speed = getSpeed();
+
+  for (const item of step.sql) {
+    await renderSqlLine(block, item, speed);
+  }
+
+  // simulate processing time
+  await sleep(Math.floor(step.ms * (1200 / speed) * 0.1));
+
+  // mark done
+  state.stepStatus[step.key] = 'done';
+  state.timingMs[step.key] = step.ms;
+  state.totalRows += step.rows;
+  state.totalMs += step.ms;
+
+  // update row status
+  step.affects.forEach(tn => {
+    if (state.rowStatus[tn]) {
+      state.rowStatus[tn].forEach(r => { r.cancelling = false; r.cancelled = true; });
+    }
+  });
+  if (step.key === 'master') {
+    if (state.rowStatus['re_cont_master']) {
+      state.rowStatus['re_cont_master'].forEach(r => {
+        r.cancelling = false;
+        r.cancelled = true;
+        r.status = 'ACTIVE';
+      });
+    }
+  }
+
+  // log
+  addLog(step.logType, step.logMsg, step.table);
+
+  renderAll();
+  updateUnlockBtn();
+}
+
+/* ============================================================
+   PLAYBACK CONTROLS
+============================================================ */
+async function playNext() {
+  const next = state.currentStep + 1;
+  if (next >= state.steps.length) {
+    stopPlay();
+    return;
+  }
+  await executeStep(next);
+  if (state.isPlaying) {
+    const delay = Math.floor(getSpeed() * 0.3);
+    state.playTimer = setTimeout(playNext, delay);
+  }
+}
+
+function startPlay() {
+  if (state.currentStep >= state.steps.length - 1) return;
+  state.isPlaying = true;
+  btnPlay.classList.add('active');
+  btnPlay.innerHTML = '<i class="ti ti-player-pause"></i>';
+  playNext();
+}
+
+function pausePlay() {
+  state.isPlaying = false;
+  if (state.playTimer) { clearTimeout(state.playTimer); state.playTimer = null; }
+  btnPlay.classList.remove('active');
+  btnPlay.innerHTML = '<i class="ti ti-player-play"></i>';
+}
+
+function stopPlay() {
+  pausePlay();
+}
+
+/* ============================================================
+   UNLOCK
+============================================================ */
+function updateUnlockBtn() {
+  const allDone = state.steps.every(s => state.stepStatus[s.key] === 'done');
+  if (allDone) {
+    unlockBtn.className = 'unlock-btn ready';
+    unlockBtn.innerHTML = '<i class="ti ti-lock-open"></i> 계약만료 잠금 해제';
+  } else if (state.stepStatus['master'] === 'done') {
+    unlockBtn.className = 'unlock-btn completed';
+    unlockBtn.innerHTML = '<i class="ti ti-check"></i> 잠금 해제 완료';
+  } else {
+    unlockBtn.className = 'unlock-btn';
+    unlockBtn.innerHTML = '<i class="ti ti-lock"></i> 계약만료 잠금 해제';
+  }
+}
+
+function handleUnlock() {
+  const allDone = state.steps.every(s => state.stepStatus[s.key] === 'done');
+  if (!allDone) return;
+  const ts = formatDT(new Date());
+  modalCode.innerHTML = `
+<span class="mk">UPDATE</span> re_cont_master
+   <span class="mk">SET</span> status        = <span class="mv">'ACTIVE'</span>,
+       lock_flag     = <span class="mv">'N'</span>,
+       date_last_chg = <span class="mv">'${ts}'</span>,
+       updated_by    = <span class="mv">'SYSTEM'</span>
+ <span class="mk">WHERE</span> cont_id = <span class="mv">'${state.contractKey}'</span>;
+
+<span style="color:var(--green)">✔  1 rows affected (5ms)</span>
+<span style="color:var(--green)">✔  계약번호 ${state.contractKey} 잠금 해제 완료</span>`;
+  modalBackdrop.style.display = 'flex';
+}
+
+/* ============================================================
+   UTILITIES
+============================================================ */
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function pad(n) { return String(n).padStart(2, '0'); }
+function now() {
+  const d = new Date();
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+function formatDT(d) {
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function addLog(type, msg, tag) {
+  state.logs.push({ type, msg, tag, time: now() });
+  renderLog();
+}
+
+/* ============================================================
+   EVENTS
+============================================================ */
+btnPlay.addEventListener('click', () => {
+  if (state.isPlaying) pausePlay();
+  else startPlay();
+});
+
+btnStep.addEventListener('click', async () => {
+  if (state.isPlaying) return;
+  const next = state.currentStep + 1;
+  if (next < state.steps.length) await executeStep(next);
+});
+
+btnReset.addEventListener('click', () => {
+  stopPlay();
+  init(state.contractKey);
+  showToast('시뮬레이션이 초기화되었습니다.', 'info');
+});
+
+contractSelect.addEventListener('change', () => {
+  stopPlay();
+  init(contractSelect.value);
+});
+
+unlockBtn.addEventListener('click', handleUnlock);
+
+document.getElementById('modalCloseBtn').addEventListener('click', () => {
+  modalBackdrop.style.display = 'none';
+  unlockBtn.className = 'unlock-btn completed';
+  unlockBtn.innerHTML = '<i class="ti ti-check"></i> 잠금 해제 완료';
+  showToast('계약만료 잠금이 해제되었습니다.', 'success');
+});
+
+modalBackdrop.addEventListener('click', e => {
+  if (e.target === modalBackdrop) modalBackdrop.style.display = 'none';
+});
+
+document.getElementById('btnClearConsole').addEventListener('click', () => {
+  consoleBody.innerHTML = '';
+});
+
+document.getElementById('btnClearLog').addEventListener('click', () => {
+  state.logs = [];
+  renderLog();
+});
+
+/* ============================================================
+   TOAST
+============================================================ */
+function showToast(msg, type = 'info') {
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  const iconMap = { info: 'ti-info-circle', success: 'ti-check', warn: 'ti-alert-triangle', error: 'ti-x' };
+  t.innerHTML = `<i class="ti ${iconMap[type] || 'ti-info-circle'}"></i> ${msg}`;
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.transition = 'opacity .4s'; t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 2500);
+}
+
+/* ============================================================
+   START
+============================================================ */
+document.addEventListener('DOMContentLoaded', () => {
+  init('CONT-2024-00892');
+});
+</script>
+</body>
+</html>
