@@ -1,0 +1,1371 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>기획서 · 기술 스펙 — 계약만료 취소 롤백 시스템</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.9.0/tabler-icons.min.css" />
+  <style>
+    /* ============================================================
+       RESET & ROOT
+    ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #f6f8fa;
+      --surface:   #ffffff;
+      --surface2:  #f6f8fa;
+      --border:    #d0d7de;
+      --border2:   #e6eaef;
+      --text:      #1f2328;
+      --muted:     #656d76;
+      --muted2:    #9198a1;
+      --accent:    #0969da;
+      --accent-bg: #ddf4ff;
+      --green:     #1a7f37;
+      --green-bg:  #dafbe1;
+      --red:       #cf222e;
+      --red-bg:    #ffebe9;
+      --orange:    #9a6700;
+      --orange-bg: #fff8c5;
+      --purple:    #6639ba;
+      --purple-bg: #fbefff;
+
+      --font: -apple-system, 'Segoe UI', system-ui, sans-serif;
+      --mono: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+      --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
+      --shadow-md: 0 4px 12px rgba(0,0,0,.1), 0 1px 3px rgba(0,0,0,.06);
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--font);
+      font-size: 14px;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    /* ============================================================
+       LAYOUT
+    ============================================================ */
+    .layout { display: flex; min-height: 100vh; }
+
+    /* SIDEBAR NAV */
+    .sidebar {
+      width: 240px; flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      position: sticky; top: 0; height: 100vh;
+      overflow-y: auto; padding: 0;
+      display: flex; flex-direction: column;
+    }
+    .sidebar-brand {
+      padding: 20px 16px 14px;
+      border-bottom: 1px solid var(--border2);
+    }
+    .sidebar-brand .brand-icon {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, #0969da, #6639ba);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 15px; margin-bottom: 8px;
+    }
+    .sidebar-brand .brand-title { font-size: 13px; font-weight: 700; color: var(--text); }
+    .sidebar-brand .brand-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    .nav-section { padding: 12px 0 4px; }
+    .nav-section-label {
+      padding: 0 16px 6px;
+      font-size: 10px; font-weight: 700;
+      color: var(--muted2); text-transform: uppercase; letter-spacing: .08em;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 16px;
+      font-size: 12px; color: var(--muted); text-decoration: none;
+      border-radius: 0; transition: all .15s;
+      cursor: pointer; border: none; background: none; width: 100%; text-align: left;
+    }
+    .nav-item:hover { color: var(--text); background: var(--bg); }
+    .nav-item.active { color: var(--accent); background: var(--accent-bg); font-weight: 600; }
+    .nav-item i { font-size: 14px; flex-shrink: 0; }
+    .nav-item .nav-badge {
+      margin-left: auto; font-size: 9px; padding: 1px 6px;
+      border-radius: 10px; background: var(--border2);
+      color: var(--muted); font-weight: 600;
+    }
+
+    .sidebar-footer {
+      margin-top: auto; padding: 12px 16px;
+      border-top: 1px solid var(--border2);
+      font-size: 10px; color: var(--muted2);
+    }
+    .ver-badge {
+      display: inline-block;
+      padding: 1px 7px; border-radius: 10px;
+      background: var(--green-bg); color: var(--green);
+      font-weight: 700; font-size: 10px;
+    }
+
+    /* CONTENT */
+    .content { flex: 1; min-width: 0; padding: 40px 48px; max-width: 960px; }
+
+    /* ============================================================
+       SECTIONS
+    ============================================================ */
+    .section { display: none; }
+    .section.visible { display: block; }
+
+    /* ============================================================
+       TYPOGRAPHY
+    ============================================================ */
+    h1.page-title {
+      font-size: 26px; font-weight: 800; color: var(--text);
+      letter-spacing: -.4px; margin-bottom: 4px;
+    }
+    .page-subtitle { font-size: 13px; color: var(--muted); margin-bottom: 28px; }
+
+    h2 {
+      font-size: 18px; font-weight: 700; color: var(--text);
+      margin: 36px 0 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border2);
+      display: flex; align-items: center; gap: 8px;
+    }
+    h2 i { font-size: 18px; color: var(--accent); }
+
+    h3 {
+      font-size: 14px; font-weight: 700; color: var(--text);
+      margin: 20px 0 8px;
+    }
+
+    p { color: var(--text); line-height: 1.75; margin-bottom: 10px; }
+    p.muted { color: var(--muted); }
+
+    code {
+      font-family: var(--mono); font-size: 12px;
+      background: var(--surface2); border: 1px solid var(--border2);
+      border-radius: 4px; padding: 1px 5px; color: var(--red);
+    }
+    pre {
+      font-family: var(--mono); font-size: 12px;
+      background: #0d1117; color: #e6edf3;
+      border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px 20px;
+      overflow-x: auto; line-height: 1.7;
+      margin: 10px 0;
+    }
+    pre .c { color: #8b949e; }
+    pre .k { color: #ff7b72; }
+    pre .s { color: #a5d6ff; }
+    pre .n { color: #79c0ff; }
+    pre .v { color: #7ee787; }
+    pre .t { color: #ffa657; }
+
+    /* ============================================================
+       COMPONENTS
+    ============================================================ */
+
+    /* cover card */
+    .cover-card {
+      background: linear-gradient(135deg, #0969da 0%, #6639ba 100%);
+      border-radius: 12px; padding: 32px 36px;
+      color: #fff; margin-bottom: 32px;
+      position: relative; overflow: hidden;
+    }
+    .cover-card::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Ccircle cx='30' cy='30' r='30'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+      pointer-events: none;
+    }
+    .cover-card h1 { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+    .cover-card .cover-sub { opacity: .8; font-size: 13px; margin-bottom: 20px; }
+    .cover-meta {
+      display: flex; flex-wrap: wrap; gap: 16px;
+    }
+    .cover-meta-item { font-size: 11px; opacity: .75; display: flex; align-items: center; gap: 5px; }
+    .cover-meta-item strong { opacity: 1; font-weight: 600; }
+
+    /* info-box */
+    .info-box {
+      display: flex; gap: 10px;
+      padding: 12px 14px; border-radius: 8px; margin: 12px 0;
+      font-size: 13px; line-height: 1.6;
+    }
+    .info-box i { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+    .info-box.blue { background: var(--accent-bg); border: 1px solid #b6d4f8; color: var(--accent); }
+    .info-box.green { background: var(--green-bg); border: 1px solid #82d99d; color: var(--green); }
+    .info-box.yellow { background: var(--orange-bg); border: 1px solid #f0d06a; color: var(--orange); }
+    .info-box.red { background: var(--red-bg); border: 1px solid #ffb8b8; color: var(--red); }
+    .info-box.purple { background: var(--purple-bg); border: 1px solid #d0aef8; color: var(--purple); }
+
+    /* tag/badge */
+    .tag {
+      display: inline-block; font-size: 10px; font-weight: 700;
+      padding: 2px 8px; border-radius: 20px; margin: 2px;
+    }
+    .tag.blue   { background: var(--accent-bg); color: var(--accent); }
+    .tag.green  { background: var(--green-bg); color: var(--green); }
+    .tag.red    { background: var(--red-bg); color: var(--red); }
+    .tag.yellow { background: var(--orange-bg); color: var(--orange); }
+    .tag.purple { background: var(--purple-bg); color: var(--purple); }
+    .tag.gray   { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+
+    /* card */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 20px; margin: 10px 0;
+      box-shadow: var(--shadow);
+    }
+    .card-title {
+      font-size: 13px; font-weight: 700; margin-bottom: 10px;
+      display: flex; align-items: center; gap: 7px;
+    }
+    .card-title i { font-size: 15px; color: var(--accent); }
+
+    /* grid */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+    /* metric card */
+    .metric {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 16px 18px;
+      box-shadow: var(--shadow);
+    }
+    .metric .m-val {
+      font-size: 26px; font-weight: 800; font-family: var(--mono);
+      color: var(--text); line-height: 1;
+    }
+    .metric .m-label { font-size: 11px; color: var(--muted); margin-top: 4px; }
+    .metric.blue .m-val { color: var(--accent); }
+    .metric.green .m-val { color: var(--green); }
+    .metric.red .m-val { color: var(--red); }
+    .metric.purple .m-val { color: var(--purple); }
+
+    /* table */
+    .spec-table {
+      width: 100%; border-collapse: collapse;
+      border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+      margin: 10px 0; font-size: 12px;
+      box-shadow: var(--shadow);
+    }
+    .spec-table thead { background: var(--surface2); }
+    .spec-table th {
+      padding: 9px 14px; text-align: left;
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .spec-table td {
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border2);
+      vertical-align: top; color: var(--text);
+    }
+    .spec-table tr:last-child td { border-bottom: none; }
+    .spec-table tr:hover td { background: var(--bg); }
+    .spec-table .td-mono { font-family: var(--mono); font-size: 11px; color: var(--red); }
+    .spec-table .td-muted { color: var(--muted); }
+
+    /* flow diagram */
+    .flow {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 0;
+      margin: 16px 0; padding: 20px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .flow-step {
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      padding: 10px 14px;
+    }
+    .flow-step .fs-num {
+      width: 28px; height: 28px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700;
+    }
+    .flow-step .fs-label { font-size: 10px; text-align: center; line-height: 1.3; font-weight: 600; }
+    .flow-step .fs-sub { font-size: 9px; color: var(--muted); font-family: var(--mono); text-align: center; }
+    .flow-arrow { color: var(--muted2); font-size: 18px; padding: 0 2px; }
+
+    /* timeline */
+    .timeline { position: relative; padding-left: 28px; margin: 12px 0; }
+    .timeline::before {
+      content: ''; position: absolute; left: 8px; top: 4px; bottom: 4px;
+      width: 2px; background: var(--border);
+    }
+    .tl-item { position: relative; margin-bottom: 18px; }
+    .tl-item::before {
+      content: ''; position: absolute; left: -23px; top: 4px;
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--surface); border: 2px solid var(--border);
+    }
+    .tl-item.done::before { background: var(--green); border-color: var(--green); }
+    .tl-item.active::before { background: var(--accent); border-color: var(--accent); }
+    .tl-item.warn::before { background: var(--orange); border-color: var(--orange); }
+    .tl-item .tl-title { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+    .tl-item .tl-desc { font-size: 12px; color: var(--muted); }
+
+    /* accordion */
+    .accordion { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin: 10px 0; }
+    .acc-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 12px 16px; background: var(--surface);
+      cursor: pointer; font-size: 13px; font-weight: 600;
+      transition: background .15s;
+    }
+    .acc-header:hover { background: var(--bg); }
+    .acc-header i.acc-icon { font-size: 14px; color: var(--accent); }
+    .acc-header .acc-arrow {
+      margin-left: auto; font-size: 14px; color: var(--muted);
+      transition: transform .25s;
+    }
+    .acc-header.open .acc-arrow { transform: rotate(180deg); }
+    .acc-body {
+      padding: 0 16px; max-height: 0; overflow: hidden;
+      transition: max-height .3s ease, padding .3s;
+      border-top: 0 solid var(--border);
+    }
+    .acc-body.open {
+      max-height: 2000px; padding: 14px 16px;
+      border-top: 1px solid var(--border2);
+    }
+
+    /* list */
+    ul.spec-list { list-style: none; padding: 0; }
+    ul.spec-list li {
+      display: flex; align-items: flex-start; gap: 8px;
+      padding: 6px 0; border-bottom: 1px solid var(--border2);
+      font-size: 13px;
+    }
+    ul.spec-list li:last-child { border-bottom: none; }
+    ul.spec-list li i { font-size: 14px; flex-shrink: 0; margin-top: 2px; }
+    ul.spec-list li.green i { color: var(--green); }
+    ul.spec-list li.blue i { color: var(--accent); }
+    ul.spec-list li.red i { color: var(--red); }
+    ul.spec-list li.yellow i { color: var(--orange); }
+
+    /* progress bar */
+    .progress-row { margin-bottom: 10px; }
+    .progress-label {
+      display: flex; justify-content: space-between;
+      font-size: 11px; margin-bottom: 4px;
+    }
+    .progress-label span:first-child { font-weight: 600; }
+    .progress-label span:last-child { color: var(--muted); }
+    .progress-bar {
+      height: 7px; background: var(--border2); border-radius: 4px; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%; border-radius: 4px;
+      background: var(--accent); transition: width 1s ease;
+    }
+    .progress-fill.green { background: var(--green); }
+    .progress-fill.purple { background: var(--purple); }
+    .progress-fill.orange { background: #d97706; }
+
+    /* risk matrix */
+    .risk-matrix {
+      display: grid; grid-template-columns: 80px repeat(3, 1fr);
+      gap: 1px; background: var(--border); border-radius: 8px; overflow: hidden;
+      margin: 10px 0; font-size: 11px;
+    }
+    .rm-cell {
+      background: var(--surface); padding: 8px 10px;
+      text-align: center; font-weight: 600;
+    }
+    .rm-cell.header { background: var(--surface2); color: var(--muted); font-size: 10px; }
+    .rm-cell.high   { background: #ffebe9; color: #cf222e; }
+    .rm-cell.mid    { background: #fff8c5; color: #9a6700; }
+    .rm-cell.low    { background: #dafbe1; color: #1a7f37; }
+    .rm-label { display: flex; align-items: center; justify-content: center; font-size: 10px; }
+
+    /* divider */
+    hr { border: none; border-top: 1px solid var(--border2); margin: 24px 0; }
+
+    /* ============================================================
+       PRINT / RESPONSIVE
+    ============================================================ */
+    @media print {
+      .sidebar { display: none; }
+      .content { padding: 20px; max-width: 100%; }
+      .section { display: block !important; }
+      h2 { page-break-before: auto; }
+    }
+    @media (max-width: 768px) {
+      .layout { flex-direction: column; }
+      .sidebar { width: 100%; height: auto; position: static; flex-direction: row; flex-wrap: wrap; }
+      .content { padding: 20px; }
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ============================================================
+       SIDEBAR
+  ============================================================ -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon"><i class="ti ti-database"></i></div>
+      <div class="brand-title">계약만료 취소 롤백</div>
+      <div class="brand-sub">프로젝트 기획서 · 기술 스펙</div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-label">기획서</div>
+      <button class="nav-item active" data-target="overview">
+        <i class="ti ti-layout-dashboard"></i> 프로젝트 개요
+      </button>
+      <button class="nav-item" data-target="background">
+        <i class="ti ti-file-description"></i> 배경 및 목적
+      </button>
+      <button class="nav-item" data-target="scope">
+        <i class="ti ti-list-check"></i> 범위 및 요구사항
+      </button>
+      <button class="nav-item" data-target="flow">
+        <i class="ti ti-arrows-right-left"></i> 업무 흐름도
+      </button>
+      <button class="nav-item" data-target="ux">
+        <i class="ti ti-device-desktop"></i> UI/UX 설계
+      </button>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-label">기술 스펙</div>
+      <button class="nav-item" data-target="arch">
+        <i class="ti ti-sitemap"></i> 시스템 아키텍처
+      </button>
+      <button class="nav-item" data-target="db">
+        <i class="ti ti-database"></i> DB 스키마
+        <span class="nav-badge">17</span>
+      </button>
+      <button class="nav-item" data-target="api">
+        <i class="ti ti-api"></i> API 명세
+        <span class="nav-badge">5</span>
+      </button>
+      <button class="nav-item" data-target="rollback">
+        <i class="ti ti-rotate-2"></i> 롤백 알고리즘
+      </button>
+      <button class="nav-item" data-target="security">
+        <i class="ti ti-shield-lock"></i> 보안 · 권한
+      </button>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-label">부록</div>
+      <button class="nav-item" data-target="risk">
+        <i class="ti ti-alert-triangle"></i> 리스크 분석
+      </button>
+      <button class="nav-item" data-target="schedule">
+        <i class="ti ti-calendar"></i> 일정 계획
+      </button>
+    </div>
+
+    <div class="sidebar-footer">
+      <div><span class="ver-badge">v1.0</span> &nbsp;2026.06.28</div>
+      <div style="margin-top:4px;">작성자: UI/UX Team · Zeons</div>
+    </div>
+  </aside>
+
+  <!-- ============================================================
+       CONTENT
+  ============================================================ -->
+  <main class="content">
+
+    <!-- ========================================================
+         1. 프로젝트 개요
+    ========================================================= -->
+    <section class="section visible" id="overview">
+      <div class="cover-card">
+        <h1><i class="ti ti-rotate-2"></i> 계약만료 취소 롤백 시스템</h1>
+        <div class="cover-sub">결산 마감된 계약 만료 상태를 안전하게 취소하기 위한 역순 롤백 워크플로우 시스템</div>
+        <div class="cover-meta">
+          <div class="cover-meta-item"><i class="ti ti-tag"></i> <strong>프로젝트 코드</strong> RB-2024</div>
+          <div class="cover-meta-item"><i class="ti ti-user"></i> <strong>담당팀</strong> 플랫폼 개발팀</div>
+          <div class="cover-meta-item"><i class="ti ti-calendar"></i> <strong>착수일</strong> 2026.07.01</div>
+          <div class="cover-meta-item"><i class="ti ti-clock"></i> <strong>완료 목표</strong> 2026.09.30</div>
+        </div>
+      </div>
+
+      <h2><i class="ti ti-chart-dots"></i> 핵심 지표</h2>
+      <div class="grid-3" style="margin-bottom:24px;">
+        <div class="metric blue">
+          <div class="m-val">17</div>
+          <div class="m-label">연관 DB 테이블 수</div>
+        </div>
+        <div class="metric green">
+          <div class="m-val">6</div>
+          <div class="m-label">롤백 단계 (역순)</div>
+        </div>
+        <div class="metric purple">
+          <div class="m-val">5</div>
+          <div class="m-label">외부 API 연동</div>
+        </div>
+      </div>
+      <div class="grid-3">
+        <div class="metric red">
+          <div class="m-val">3</div>
+          <div class="m-label">트랜잭션 그룹</div>
+        </div>
+        <div class="metric">
+          <div class="m-val">2</div>
+          <div class="m-label">권한 등급 (관리자/슈퍼)</div>
+        </div>
+        <div class="metric green">
+          <div class="m-val">100%</div>
+          <div class="m-label">감사 로그 적용률</div>
+        </div>
+      </div>
+
+      <h2><i class="ti ti-checkup-list"></i> 프로젝트 요약</h2>
+      <div class="card">
+        <table class="spec-table">
+          <tbody>
+            <tr><td style="width:130px;font-weight:700;color:var(--muted);">프로젝트명</td><td>계약만료 취소 롤백 시스템 (Rollback Simulator)</td></tr>
+            <tr><td style="font-weight:700;color:var(--muted);">도메인</td><td>부동산 임대차 관리 플랫폼 — 계약 관리 모듈</td></tr>
+            <tr><td style="font-weight:700;color:var(--muted);">문제 정의</td><td>결산 마감(lock)된 계약 만료 상태를 직접 수정할 수 없어 담당자가 수동으로 대응 중이며, 순서 오류 시 데이터 정합성이 깨짐</td></tr>
+            <tr><td style="font-weight:700;color:var(--muted);">솔루션</td><td>역순 롤백 가이드 및 단계별 실행 UI를 제공하여, 처리 순서를 강제하고 처리 상태를 실시간으로 시각화</td></tr>
+            <tr><td style="font-weight:700;color:var(--muted);">대상 사용자</td><td>관리자(ADMIN), 슈퍼관리자(SUPER_ADMIN)</td></tr>
+            <tr><td style="font-weight:700;color:var(--muted);">주요 제약</td><td>결산 마감 테이블 직접 수정 불가 / 국세청 API 취소 선행 필수 / 역순 처리 순서 위반 불가</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="info-box blue">
+        <i class="ti ti-info-circle"></i>
+        <div>이 문서는 <strong>기획서(Functional Spec)</strong>와 <strong>기술 스펙(Technical Spec)</strong>을 통합한 단일 레퍼런스입니다. 개발·QA·운영 팀이 공통 참조하도록 설계되었습니다.</div>
+      </div>
+    </section>
+
+    <!-- ========================================================
+         2. 배경 및 목적
+    ========================================================= -->
+    <section class="section" id="background">
+      <h1 class="page-title">배경 및 목적</h1>
+      <p class="page-subtitle">왜 이 시스템이 필요한가</p>
+
+      <h2><i class="ti ti-alert-circle"></i> 현황 문제</h2>
+      <div class="info-box red">
+        <i class="ti ti-alert-triangle"></i>
+        <div>현재 계약만료 취소는 <strong>100% 수동 처리</strong>로, 담당자가 SQL을 직접 실행합니다. 처리 순서 실수로 인한 데이터 정합성 오류가 월 평균 2~3건 발생하고 있습니다.</div>
+      </div>
+
+      <div class="grid-2" style="margin-top:16px;">
+        <div class="card">
+          <div class="card-title"><i class="ti ti-x"></i> AS-IS (현재)</div>
+          <ul class="spec-list">
+            <li class="red"><i class="ti ti-x"></i><span>수동 SQL 실행 — 순서 강제 없음</span></li>
+            <li class="red"><i class="ti ti-x"></i><span>현금영수증/세금계산서 누락 취소 발생</span></li>
+            <li class="red"><i class="ti ti-x"></i><span>처리 이력 비체계적 (메모 수준)</span></li>
+            <li class="red"><i class="ti ti-x"></i><span>부분 취소 시 롤백 불가</span></li>
+            <li class="red"><i class="ti ti-x"></i><span>처리 후 마스터 상태 미갱신 사례 존재</span></li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title"><i class="ti ti-check"></i> TO-BE (목표)</div>
+          <ul class="spec-list">
+            <li class="green"><i class="ti ti-check"></i><span>6단계 역순 롤백 순서 강제</span></li>
+            <li class="green"><i class="ti ti-check"></i><span>외부 API 자동 연동 (현금영수증·세금계산서)</span></li>
+            <li class="green"><i class="ti ti-check"></i><span>단계별 처리 이력 자동 감사 로그</span></li>
+            <li class="green"><i class="ti ti-check"></i><span>트랜잭션 묶음 — 중간 실패 시 원상복구</span></li>
+            <li class="green"><i class="ti ti-check"></i><span>마스터 상태 자동 갱신 및 잠금 해제</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <h2><i class="ti ti-target"></i> 목표 및 성공 지표</h2>
+      <div class="progress-row">
+        <div class="progress-label"><span>처리 오류율 감소</span><span>목표: 현재 대비 95% 감소</span></div>
+        <div class="progress-bar"><div class="progress-fill green" style="width:95%"></div></div>
+      </div>
+      <div class="progress-row">
+        <div class="progress-label"><span>처리 소요시간 단축</span><span>목표: 평균 40분 → 5분 이내</span></div>
+        <div class="progress-bar"><div class="progress-fill" style="width:87%"></div></div>
+      </div>
+      <div class="progress-row">
+        <div class="progress-label"><span>감사 로그 커버리지</span><span>목표: 100%</span></div>
+        <div class="progress-bar"><div class="progress-fill purple" style="width:100%"></div></div>
+      </div>
+      <div class="progress-row">
+        <div class="progress-label"><span>담당자 교육 없는 자가 처리율</span><span>목표: 80% 이상</span></div>
+        <div class="progress-bar"><div class="progress-fill orange" style="width:80%"></div></div>
+      </div>
+    </section>
+
+    <!-- ========================================================
+         3. 범위 및 요구사항
+    ========================================================= -->
+    <section class="section" id="scope">
+      <h1 class="page-title">범위 및 요구사항</h1>
+      <p class="page-subtitle">기능 요구사항(FR) · 비기능 요구사항(NFR)</p>
+
+      <h2><i class="ti ti-circle-check"></i> 기능 요구사항</h2>
+
+      <div class="accordion">
+        <div class="acc-header open" onclick="toggleAcc(this)">
+          <i class="ti ti-search acc-icon"></i> FR-01 계약 조회
+          <span class="tag blue">필수</span>
+          <i class="ti ti-chevron-down acc-arrow"></i>
+        </div>
+        <div class="acc-body open">
+          <ul class="spec-list">
+            <li class="blue"><i class="ti ti-point"></i><span>계약번호(cont_id) 입력으로 <code>re_cont_master</code> 조회</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span>마감 잠금(lock_flag = 'Y') 상태 여부를 UI에 표시</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span>계약 기간, 만료일, 보증금, 최종 변경일 표시</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span>잘못된 계약번호 입력 시 명확한 오류 메시지 반환</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="accordion">
+        <div class="acc-header" onclick="toggleAcc(this)">
+          <i class="ti ti-sitemap acc-icon"></i> FR-02 종속 데이터 체크
+          <span class="tag blue">필수</span>
+          <i class="ti ti-chevron-down acc-arrow"></i>
+        </div>
+        <div class="acc-body">
+          <ul class="spec-list">
+            <li class="blue"><i class="ti ti-point"></i><span>5개 연관 테이블의 잔존 데이터 건수 자동 조회</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span>각 항목별 처리 상태 표시: 삭제 필요(빨강) / 확인 필요(노랑) / 완료(초록)</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span>종속 데이터가 없는 경우 즉시 마스터 복원 단계로 이동</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="accordion">
+        <div class="acc-header" onclick="toggleAcc(this)">
+          <i class="ti ti-rotate-2 acc-icon"></i> FR-03 역순 롤백 처리
+          <span class="tag red">핵심</span>
+          <i class="ti ti-chevron-down acc-arrow"></i>
+        </div>
+        <div class="acc-body">
+          <ul class="spec-list">
+            <li class="green"><i class="ti ti-point"></i><span>현금영수증 → 세금계산서 → 수납 → 청구 순서 강제</span></li>
+            <li class="green"><i class="ti ti-point"></i><span>선행 단계 미완료 시 다음 단계 실행 차단</span></li>
+            <li class="green"><i class="ti ti-point"></i><span>각 단계별 처리 안내 텍스트 및 대상 테이블 명시</span></li>
+            <li class="green"><i class="ti ti-point"></i><span>처리 완료 확인 버튼으로 상태를 green으로 전환</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="accordion">
+        <div class="acc-header" onclick="toggleAcc(this)">
+          <i class="ti ti-lock-open acc-icon"></i> FR-04 마스터 잠금 해제
+          <span class="tag blue">필수</span>
+          <i class="ti ti-chevron-down acc-arrow"></i>
+        </div>
+        <div class="acc-body">
+          <ul class="spec-list">
+            <li class="blue"><i class="ti ti-point"></i><span>모든 종속 데이터 취소 완료 후 해제 버튼 활성화</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span><code>re_cont_master</code>의 <code>lock_flag</code>, <code>date_chg</code>, <code>date_last_chg</code> 갱신</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span>처리 완료 모달에 SQL 실행 결과 및 타임스탬프 표시</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="accordion">
+        <div class="acc-header" onclick="toggleAcc(this)">
+          <i class="ti ti-history acc-icon"></i> FR-05 처리 이력 로그
+          <span class="tag yellow">권장</span>
+          <i class="ti ti-chevron-down acc-arrow"></i>
+        </div>
+        <div class="acc-body">
+          <ul class="spec-list">
+            <li class="yellow"><i class="ti ti-point"></i><span>각 단계 완료 시 타임스탬프·처리자·대상 계약번호 로그 기록</span></li>
+            <li class="yellow"><i class="ti ti-point"></i><span><code>tb_rollback_audit_log</code> 테이블에 영구 저장</span></li>
+            <li class="yellow"><i class="ti ti-point"></i><span>UI 내 실시간 로그 피드 표시</span></li>
+            <li class="yellow"><i class="ti ti-point"></i><span>로그 CSV 내보내기 기능</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <h2><i class="ti ti-settings"></i> 비기능 요구사항</h2>
+      <table class="spec-table">
+        <thead><tr><th>분류</th><th>요구사항</th><th>측정 기준</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag blue">성능</span></td><td>계약 조회 응답</td><td class="td-muted">≤ 500ms (95th percentile)</td></tr>
+          <tr><td><span class="tag blue">성능</span></td><td>롤백 단계 처리</td><td class="td-muted">단계당 ≤ 3초 (API 포함)</td></tr>
+          <tr><td><span class="tag green">가용성</span></td><td>서비스 업타임</td><td class="td-muted">99.5% (월간)</td></tr>
+          <tr><td><span class="tag red">보안</span></td><td>접근 제어</td><td class="td-muted">ADMIN 이상 권한 필수, 세션 토큰 검증</td></tr>
+          <tr><td><span class="tag red">보안</span></td><td>SQL Injection 방지</td><td class="td-muted">모든 입력값 Prepared Statement 처리</td></tr>
+          <tr><td><span class="tag purple">감사</span></td><td>처리 로그 보존</td><td class="td-muted">최소 3년, 변경 불가(Immutable)</td></tr>
+          <tr><td><span class="tag yellow">운영</span></td><td>동시 처리</td><td class="td-muted">동일 계약번호 중복 처리 Lock 적용</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ========================================================
+         4. 업무 흐름도
+    ========================================================= -->
+    <section class="section" id="flow">
+      <h1 class="page-title">업무 흐름도</h1>
+      <p class="page-subtitle">역순 롤백 6단계 처리 흐름</p>
+
+      <h2><i class="ti ti-arrows-right-left"></i> 전체 롤백 프로세스</h2>
+
+      <div class="flow">
+        <div class="flow-step">
+          <div class="fs-num" style="background:var(--accent-bg);color:var(--accent);">1</div>
+          <div class="fs-label">요청 감지</div>
+          <div class="fs-sub">계약번호 입력</div>
+        </div>
+        <div class="flow-arrow"><i class="ti ti-arrow-right"></i></div>
+        <div class="flow-step">
+          <div class="fs-num" style="background:var(--accent-bg);color:var(--accent);">2</div>
+          <div class="fs-label">종속 체크</div>
+          <div class="fs-sub">5개 테이블</div>
+        </div>
+        <div class="flow-arrow"><i class="ti ti-arrow-right"></i></div>
+        <div class="flow-step">
+          <div class="fs-num" style="background:var(--red-bg);color:var(--red);">3</div>
+          <div class="fs-label">현금영수증</div>
+          <div class="fs-sub">자진취소 API</div>
+        </div>
+        <div class="flow-arrow"><i class="ti ti-arrow-right"></i></div>
+        <div class="flow-step">
+          <div class="fs-num" style="background:var(--red-bg);color:var(--red);">4</div>
+          <div class="fs-label">세금계산서</div>
+          <div class="fs-sub">수정발행 API</div>
+        </div>
+        <div class="flow-arrow"><i class="ti ti-arrow-right"></i></div>
+        <div class="flow-step">
+          <div class="fs-num" style="background:var(--orange-bg);color:var(--orange);">5</div>
+          <div class="fs-label">수납 취소</div>
+          <div class="fs-sub">원장 연동 해제</div>
+        </div>
+        <div class="flow-arrow"><i class="ti ti-arrow-right"></i></div>
+        <div class="flow-step">
+          <div class="fs-num" style="background:var(--orange-bg);color:var(--orange);">6</div>
+          <div class="fs-label">청구 삭제</div>
+          <div class="fs-sub">역추적 삭제</div>
+        </div>
+        <div class="flow-arrow"><i class="ti ti-arrow-right"></i></div>
+        <div class="flow-step">
+          <div class="fs-num" style="background:var(--green-bg);color:var(--green);">7</div>
+          <div class="fs-label">마스터 복원</div>
+          <div class="fs-sub">잠금 해제</div>
+        </div>
+      </div>
+
+      <div class="info-box yellow">
+        <i class="ti ti-alert-triangle"></i>
+        <div><strong>순서 제약:</strong> 3→4→5→6 순서는 반드시 지켜야 합니다. 현금영수증·세금계산서는 수납 취소 전에 완료되어야 하며, 수납은 청구 삭제 전에 완료되어야 합니다.</div>
+      </div>
+
+      <h2><i class="ti ti-timeline"></i> 단계별 세부 처리</h2>
+      <div class="timeline">
+        <div class="tl-item done">
+          <div class="tl-title"><span class="tag blue">STEP 1</span> 종속 데이터 전수 조회</div>
+          <div class="tl-desc">계약번호로 5개 테이블 JOIN 조회 → 건수 집계 → UI 트리 렌더링</div>
+        </div>
+        <div class="tl-item warn">
+          <div class="tl-title"><span class="tag red">STEP 2</span> 현금영수증 자진취소</div>
+          <div class="tl-desc"><code>tb_cash_receipt</code> 건별 국세청 자진취소 API 호출 → <code>tb_cash_temp.status_cd = 'CANCEL'</code> UPDATE</div>
+        </div>
+        <div class="tl-item warn">
+          <div class="tl-title"><span class="tag red">STEP 3</span> 세금계산서 수정발행</div>
+          <div class="tl-desc"><code>tb_tax</code> 승인번호 확인 → 마이너스 세금계산서 발행 API → <code>tb_tax_line</code> 연동</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-title"><span class="tag yellow">STEP 4</span> 수납 및 원장 취소</div>
+          <div class="tl-desc"><code>re_bill_receipt_acc_if</code> DELETE → <code>re_bill_receipt.status = 'CANCELLED'</code> UPDATE (트랜잭션)</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-title"><span class="tag yellow">STEP 5</span> 청구 데이터 역추적 삭제</div>
+          <div class="tl-desc"><code>re_bill_request_acc_if</code> DELETE → <code>re_bill_request</code> WHERE status='BILLED' DELETE (트랜잭션)</div>
+        </div>
+        <div class="tl-item active">
+          <div class="tl-title"><span class="tag green">STEP 6</span> 마스터 복원 및 잠금 해제</div>
+          <div class="tl-desc"><code>re_cont_master</code> lock_flag='N', status='ACTIVE', date_chg=NOW() UPDATE → <code>re_room_master</code> 공실 처리</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================
+         5. UI/UX 설계
+    ========================================================= -->
+    <section class="section" id="ux">
+      <h1 class="page-title">UI/UX 설계</h1>
+      <p class="page-subtitle">화면 구성 원칙 및 인터랙션 정의</p>
+
+      <h2><i class="ti ti-layout"></i> 화면 구성</h2>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title"><i class="ti ti-file-invoice"></i> v1 — 싱글 뷰 (index.html)</div>
+          <ul class="spec-list">
+            <li class="green"><i class="ti ti-check"></i><span>라이트 모드 — 업무용 ERP 스타일</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span>상단: 계약 조회 + 마감 잠금 배지</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span>중앙: 종속 데이터 트리 + 역순 가이드</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span>우측: 잠금 해제 버튼 + 처리 이력</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span>인터랙션: 클릭 → detail 확장 → 완료 확인</span></li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title"><i class="ti ti-terminal-2"></i> v2 — 롤백 시뮬레이터 (index2.html)</div>
+          <ul class="spec-list">
+            <li class="green"><i class="ti ti-check"></i><span>다크 모드 — 개발자 콘솔 스타일</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span>좌측: DB 테이블 실시간 상태 카드</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span>중앙: SQL 타이핑 애니메이션 콘솔</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span>우측: 타임라인 바 + 이벤트 로그</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span>재생/정지/단계/속도 조절 컨트롤</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <h2><i class="ti ti-paint"></i> 디자인 토큰</h2>
+      <table class="spec-table">
+        <thead><tr><th>역할</th><th>v1 (라이트)</th><th>v2 (다크)</th><th>의미</th></tr></thead>
+        <tbody>
+          <tr><td>배경</td><td class="td-mono">#f4f5f7</td><td class="td-mono">#0d1117</td><td class="td-muted">주 배경</td></tr>
+          <tr><td>카드</td><td class="td-mono">#ffffff</td><td class="td-mono">#161b22</td><td class="td-muted">패널/카드 배경</td></tr>
+          <tr><td>위험</td><td class="td-mono">#b91c1c</td><td class="td-mono">#f85149</td><td class="td-muted">삭제 필요</td></tr>
+          <tr><td>경고</td><td class="td-mono">#92400e</td><td class="td-mono">#d29922</td><td class="td-muted">확인 필요</td></tr>
+          <tr><td>완료</td><td class="td-mono">#166534</td><td class="td-mono">#3fb950</td><td class="td-muted">취소 완료</td></tr>
+          <tr><td>강조</td><td class="td-mono">#1a56db</td><td class="td-mono">#58a6ff</td><td class="td-muted">Primary Accent</td></tr>
+        </tbody>
+      </table>
+
+      <h2><i class="ti ti-hand-click"></i> 인터랙션 규칙</h2>
+      <div class="card">
+        <ul class="spec-list">
+          <li class="red"><i class="ti ti-ban"></i><span><strong>순서 강제:</strong> 이전 단계 미완료 시 버튼 disabled + 경고 토스트</span></li>
+          <li class="blue"><i class="ti ti-toggle-left"></i><span><strong>Detail 토글:</strong> 항목 행 클릭으로 처리 안내 펼침/닫힘</span></li>
+          <li class="green"><i class="ti ti-check"></i><span><strong>상태 전환:</strong> 완료 확인 → dot 빨강/노랑 → 초록으로 즉시 전환</span></li>
+          <li class="purple"><i class="ti ti-lock-open"></i><span><strong>잠금 해제:</strong> 4개 항목 모두 green일 때만 버튼 활성화</span></li>
+          <li class="yellow"><i class="ti ti-refresh"></i><span><strong>계약 전환:</strong> 조회 버튼 또는 Enter로 전체 상태 초기화 후 재로드</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ========================================================
+         6. 시스템 아키텍처
+    ========================================================= -->
+    <section class="section" id="arch">
+      <h1 class="page-title">시스템 아키텍처</h1>
+      <p class="page-subtitle">기술 스택 및 컴포넌트 구성</p>
+
+      <h2><i class="ti ti-stack-2"></i> 기술 스택</h2>
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-title"><i class="ti ti-brand-javascript"></i> 프론트엔드</div>
+          <ul class="spec-list">
+            <li class="blue"><i class="ti ti-point"></i><span>Vanilla JS (ES2022, strict mode)</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span>HTML5 + CSS3 (CSS Variables)</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span>Tabler Icons v3.9 (CDN)</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span>No framework — 번들러 불필요</span></li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title"><i class="ti ti-server"></i> 백엔드 (목표)</div>
+          <ul class="spec-list">
+            <li class="green"><i class="ti ti-point"></i><span>Java Spring Boot 3.x</span></li>
+            <li class="green"><i class="ti ti-point"></i><span>MyBatis (쿼리 매퍼)</span></li>
+            <li class="green"><i class="ti ti-point"></i><span>Spring Security (권한)</span></li>
+            <li class="green"><i class="ti ti-point"></i><span>RESTful API (JSON)</span></li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title"><i class="ti ti-database"></i> 데이터베이스</div>
+          <ul class="spec-list">
+            <li class="purple"><i class="ti ti-point"></i><span>Oracle 19c (메인)</span></li>
+            <li class="purple"><i class="ti ti-point"></i><span>프로시저: <code>sp_cash_receipt_cancel</code></span></li>
+            <li class="purple"><i class="ti ti-point"></i><span>감사 로그: <code>tb_rollback_audit_log</code></span></li>
+            <li class="purple"><i class="ti ti-point"></i><span>Row-level Lock (FOR UPDATE)</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <h2><i class="ti ti-plug"></i> 외부 연동</h2>
+      <table class="spec-table">
+        <thead><tr><th>연동 대상</th><th>방식</th><th>처리 단계</th><th>비고</th></tr></thead>
+        <tbody>
+          <tr><td>국세청 현금영수증 API</td><td class="td-mono">REST/SOAP</td><td>STEP 2</td><td class="td-muted">자진취소 요청, 승인번호 필수</td></tr>
+          <tr><td>세금계산서 발행 시스템</td><td class="td-mono">REST</td><td>STEP 3</td><td class="td-muted">마이너스 계산서 발행</td></tr>
+          <tr><td>원장 연동 인터페이스</td><td class="td-mono">DB Link</td><td>STEP 4</td><td class="td-muted"><code>re_bill_receipt_acc_if</code> 연동</td></tr>
+          <tr><td>청구 원장 인터페이스</td><td class="td-mono">DB Link</td><td>STEP 5</td><td class="td-muted"><code>re_bill_request_acc_if</code> 연동</td></tr>
+          <tr><td>알림 시스템</td><td class="td-mono">Web Push</td><td>완료 후</td><td class="td-muted">처리 완료 담당자 알림</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ========================================================
+         7. DB 스키마
+    ========================================================= -->
+    <section class="section" id="db">
+      <h1 class="page-title">DB 스키마</h1>
+      <p class="page-subtitle">롤백 처리 관련 17개 테이블 정의</p>
+
+      <h2><i class="ti ti-database"></i> 테이블 목록</h2>
+
+      <h3><span class="tag red">삭제 필요</span> 현금영수증 그룹</h3>
+      <table class="spec-table">
+        <thead><tr><th>테이블명</th><th>설명</th><th>주요 컬럼</th><th>처리</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="td-mono">tb_cash_receipt</td>
+            <td>현금영수증 원장</td>
+            <td class="td-mono">cash_id, cont_id, status, cancel_dt</td>
+            <td><span class="tag red">UPDATE status='CANCEL'</span></td>
+          </tr>
+          <tr>
+            <td class="td-mono">tb_cash_receipt_mst</td>
+            <td>현금영수증 마스터</td>
+            <td class="td-mono">mst_id, cash_id, approval_no</td>
+            <td><span class="tag red">UPDATE cancel_flag='Y'</span></td>
+          </tr>
+          <tr>
+            <td class="td-mono">tb_cash_temp</td>
+            <td>현금영수증 임시 처리</td>
+            <td class="td-mono">temp_id, cont_id, status_cd</td>
+            <td><span class="tag red">UPDATE status_cd='CANCEL'</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3><span class="tag red">삭제 필요</span> 세금계산서 그룹</h3>
+      <table class="spec-table">
+        <thead><tr><th>테이블명</th><th>설명</th><th>주요 컬럼</th><th>처리</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="td-mono">tb_tax</td>
+            <td>세금계산서 원장</td>
+            <td class="td-mono">tax_id, cont_id, approval_no, status</td>
+            <td><span class="tag red">UPDATE status='CANCELLED'</span></td>
+          </tr>
+          <tr>
+            <td class="td-mono">tb_tax_line</td>
+            <td>세금계산서 명세 라인</td>
+            <td class="td-mono">line_id, tax_id, item_nm, amount</td>
+            <td><span class="tag red">DELETE or UPDATE</span></td>
+          </tr>
+          <tr>
+            <td class="td-mono">re_bill_request</td>
+            <td>청구 요청 (세금계산서 연동)</td>
+            <td class="td-mono">bill_id, cont_id, tax_id, status</td>
+            <td><span class="tag red">연동 취소</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3><span class="tag yellow">확인 필요</span> 수납·청구 그룹</h3>
+      <table class="spec-table">
+        <thead><tr><th>테이블명</th><th>설명</th><th>주요 컬럼</th><th>처리</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="td-mono">re_bill_receipt</td>
+            <td>수납 원장</td>
+            <td class="td-mono">receipt_id, cont_id, bill_id, status</td>
+            <td><span class="tag yellow">UPDATE status='CANCELLED'</span></td>
+          </tr>
+          <tr>
+            <td class="td-mono">re_bill_receipt_acc_if</td>
+            <td>수납 원장 연동 인터페이스</td>
+            <td class="td-mono">if_id, receipt_id, acc_cd</td>
+            <td><span class="tag yellow">DELETE</span></td>
+          </tr>
+          <tr>
+            <td class="td-mono">re_bill_request</td>
+            <td>청구 요청</td>
+            <td class="td-mono">bill_id, cont_id, bill_dt, amount, status</td>
+            <td><span class="tag yellow">DELETE WHERE status='BILLED'</span></td>
+          </tr>
+          <tr>
+            <td class="td-mono">re_bill_request_acc_if</td>
+            <td>청구 원장 연동 인터페이스</td>
+            <td class="td-mono">if_id, bill_id, acc_cd</td>
+            <td><span class="tag yellow">DELETE</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3><span class="tag green">완료 후 갱신</span> 마스터 그룹</h3>
+      <table class="spec-table">
+        <thead><tr><th>테이블명</th><th>설명</th><th>주요 컬럼</th><th>처리</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="td-mono">re_cont_master</td>
+            <td>계약 마스터</td>
+            <td class="td-mono">cont_id, status, lock_flag, date_chg, date_last_chg</td>
+            <td><span class="tag green">UPDATE lock_flag='N', status='ACTIVE'</span></td>
+          </tr>
+          <tr>
+            <td class="td-mono">re_cont_detail</td>
+            <td>계약 상세</td>
+            <td class="td-mono">detail_id, cont_id, room_id, cont_type</td>
+            <td><span class="tag green">UPDATE cont_status</span></td>
+          </tr>
+          <tr>
+            <td class="td-mono">re_room_master</td>
+            <td>호실 마스터</td>
+            <td class="td-mono">room_id, cont_id, cont_status, cont_end_dt</td>
+            <td><span class="tag green">UPDATE cont_status='VACANT'</span></td>
+          </tr>
+          <tr>
+            <td class="td-mono">re_cont_refund</td>
+            <td>보증금 정산</td>
+            <td class="td-mono">refund_id, cont_id, amount, status</td>
+            <td><span class="tag gray">확인 후 유지</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3><span class="tag purple">신규 생성</span> 감사 로그</h3>
+      <pre><span class="c">-- 롤백 처리 감사 로그 테이블 (신규 생성)</span>
+<span class="k">CREATE TABLE</span> <span class="t">tb_rollback_audit_log</span> (
+  log_id        <span class="n">NUMBER</span>        <span class="k">NOT NULL</span>,   <span class="c">-- PK (SEQ)</span>
+  cont_id       <span class="n">VARCHAR2</span>(20)  <span class="k">NOT NULL</span>,   <span class="c">-- 계약번호</span>
+  step_cd       <span class="n">VARCHAR2</span>(20)  <span class="k">NOT NULL</span>,   <span class="c">-- CASH/TAX/RECEIPT/BILL/MASTER</span>
+  action_cd     <span class="n">VARCHAR2</span>(20)  <span class="k">NOT NULL</span>,   <span class="c">-- START/COMPLETE/ERROR</span>
+  rows_affected <span class="n">NUMBER</span>        <span class="k">DEFAULT</span> 0,
+  err_msg       <span class="n">VARCHAR2</span>(1000),
+  processed_by  <span class="n">VARCHAR2</span>(50)  <span class="k">NOT NULL</span>,   <span class="c">-- 처리자 ID</span>
+  processed_at  <span class="n">TIMESTAMP</span>     <span class="k">DEFAULT</span> <span class="n">SYSTIMESTAMP</span>,
+  ip_addr       <span class="n">VARCHAR2</span>(45),               <span class="c">-- 요청 IP</span>
+  <span class="k">CONSTRAINT</span> pk_rollback_log <span class="k">PRIMARY KEY</span> (log_id)
+);</pre>
+    </section>
+
+    <!-- ========================================================
+         8. API 명세
+    ========================================================= -->
+    <section class="section" id="api">
+      <h1 class="page-title">API 명세</h1>
+      <p class="page-subtitle">백엔드 REST API 정의 (목표 스펙)</p>
+
+      <h2><i class="ti ti-api"></i> 엔드포인트 목록</h2>
+      <table class="spec-table">
+        <thead><tr><th>Method</th><th>Endpoint</th><th>설명</th><th>권한</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="tag blue">GET</span></td>
+            <td class="td-mono">/api/rollback/{contId}</td>
+            <td>계약 조회 + 종속 데이터 현황</td>
+            <td><span class="tag gray">ADMIN</span></td>
+          </tr>
+          <tr>
+            <td><span class="tag green">POST</span></td>
+            <td class="td-mono">/api/rollback/{contId}/cash</td>
+            <td>현금영수증 취소 처리</td>
+            <td><span class="tag red">SUPER_ADMIN</span></td>
+          </tr>
+          <tr>
+            <td><span class="tag green">POST</span></td>
+            <td class="td-mono">/api/rollback/{contId}/tax</td>
+            <td>세금계산서 수정발행</td>
+            <td><span class="tag red">SUPER_ADMIN</span></td>
+          </tr>
+          <tr>
+            <td><span class="tag green">POST</span></td>
+            <td class="td-mono">/api/rollback/{contId}/receipt</td>
+            <td>수납 데이터 취소</td>
+            <td><span class="tag red">SUPER_ADMIN</span></td>
+          </tr>
+          <tr>
+            <td><span class="tag green">POST</span></td>
+            <td class="td-mono">/api/rollback/{contId}/unlock</td>
+            <td>마스터 잠금 해제</td>
+            <td><span class="tag red">SUPER_ADMIN</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2><i class="ti ti-code"></i> 응답 형식</h2>
+      <pre><span class="c">// 성공 응답</span>
+{
+  <span class="s">"success"</span>: <span class="v">true</span>,
+  <span class="s">"step"</span>: <span class="s">"CASH"</span>,
+  <span class="s">"rowsAffected"</span>: <span class="n">3</span>,
+  <span class="s">"executionMs"</span>: <span class="n">312</span>,
+  <span class="s">"timestamp"</span>: <span class="s">"2026-06-28T14:32:11.000+09:00"</span>,
+  <span class="s">"nextStep"</span>: <span class="s">"TAX"</span>
+}
+
+<span class="c">// 실패 응답 (순서 오류)</span>
+{
+  <span class="s">"success"</span>: <span class="v">false</span>,
+  <span class="s">"errorCode"</span>: <span class="s">"ROLLBACK_ORDER_VIOLATION"</span>,
+  <span class="s">"message"</span>: <span class="s">"현금영수증 취소를 먼저 처리해야 합니다."</span>,
+  <span class="s">"requiredStep"</span>: <span class="s">"CASH"</span>
+}
+
+<span class="c">// 실패 응답 (외부 API 오류)</span>
+{
+  <span class="s">"success"</span>: <span class="v">false</span>,
+  <span class="s">"errorCode"</span>: <span class="s">"EXTERNAL_API_ERROR"</span>,
+  <span class="s">"message"</span>: <span class="s">"국세청 API 응답 오류 (HTTP 503)"</span>,
+  <span class="s">"retryable"</span>: <span class="v">true</span>
+}</pre>
+    </section>
+
+    <!-- ========================================================
+         9. 롤백 알고리즘
+    ========================================================= -->
+    <section class="section" id="rollback">
+      <h1 class="page-title">롤백 알고리즘</h1>
+      <p class="page-subtitle">핵심 로직 및 트랜잭션 설계</p>
+
+      <h2><i class="ti ti-code"></i> 처리 순서 검증 로직</h2>
+      <pre><span class="c">-- 역순 처리 강제 검증 (서버 사이드)</span>
+<span class="k">const</span> <span class="t">ROLLBACK_ORDER</span> = [<span class="s">'CASH'</span>, <span class="s">'TAX'</span>, <span class="s">'RECEIPT'</span>, <span class="s">'BILL'</span>];
+
+<span class="k">function</span> <span class="n">validateOrder</span>(requestedStep, stepStatus) {
+  <span class="k">const</span> idx = ROLLBACK_ORDER.indexOf(requestedStep);
+  <span class="k">if</span> (idx > 0) {
+    <span class="k">const</span> prevStep = ROLLBACK_ORDER[idx - 1];
+    <span class="k">if</span> (stepStatus[prevStep] !== <span class="s">'DONE'</span>) {
+      <span class="k">throw new</span> <span class="t">RollbackOrderViolationError</span>(prevStep);
+    }
+  }
+}</pre>
+
+      <h2><i class="ti ti-database"></i> 트랜잭션 그룹 설계</h2>
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-title"><i class="ti ti-circle-number-1"></i> TX-1: 현금영수증</div>
+          <p style="font-size:11px;color:var(--muted);margin-bottom:6px;">외부 API 완료 후 내부 UPDATE</p>
+          <ul class="spec-list">
+            <li class="blue"><i class="ti ti-point"></i><span style="font-size:11px;font-family:var(--mono)">CALL sp_cash_receipt_cancel()</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span style="font-size:11px;font-family:var(--mono)">UPDATE tb_cash_receipt</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span style="font-size:11px;font-family:var(--mono)">UPDATE tb_cash_temp</span></li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title"><i class="ti ti-circle-number-2"></i> TX-2: 수납·청구 (묶음)</div>
+          <p style="font-size:11px;color:var(--muted);margin-bottom:6px;">BEGIN / COMMIT 단일 트랜잭션</p>
+          <ul class="spec-list">
+            <li class="blue"><i class="ti ti-point"></i><span style="font-size:11px;font-family:var(--mono)">DELETE re_bill_receipt_acc_if</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span style="font-size:11px;font-family:var(--mono)">UPDATE re_bill_receipt</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span style="font-size:11px;font-family:var(--mono)">DELETE re_bill_request_acc_if</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span style="font-size:11px;font-family:var(--mono)">DELETE re_bill_request</span></li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title"><i class="ti ti-circle-number-3"></i> TX-3: 마스터 복원</div>
+          <p style="font-size:11px;color:var(--muted);margin-bottom:6px;">마지막 단계, 잠금 해제</p>
+          <ul class="spec-list">
+            <li class="blue"><i class="ti ti-point"></i><span style="font-size:11px;font-family:var(--mono)">UPDATE re_cont_master</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span style="font-size:11px;font-family:var(--mono)">UPDATE re_room_master</span></li>
+            <li class="blue"><i class="ti ti-point"></i><span style="font-size:11px;font-family:var(--mono)">INSERT tb_rollback_audit_log</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="info-box yellow">
+        <i class="ti ti-alert-triangle"></i>
+        <div><strong>멱등성 보장:</strong> 각 단계는 이미 취소된 데이터를 다시 처리해도 오류가 발생하지 않도록 <code>WHERE status != 'CANCELLED'</code> 조건을 포함합니다.</div>
+      </div>
+    </section>
+
+    <!-- ========================================================
+         10. 보안 · 권한
+    ========================================================= -->
+    <section class="section" id="security">
+      <h1 class="page-title">보안 · 권한</h1>
+      <p class="page-subtitle">접근 제어 및 감사 추적</p>
+
+      <h2><i class="ti ti-shield"></i> 권한 매트릭스</h2>
+      <table class="spec-table">
+        <thead><tr><th>기능</th><th>VIEWER</th><th>ADMIN</th><th>SUPER_ADMIN</th></tr></thead>
+        <tbody>
+          <tr><td>계약 조회</td><td><i class="ti ti-check" style="color:var(--green)"></i></td><td><i class="ti ti-check" style="color:var(--green)"></i></td><td><i class="ti ti-check" style="color:var(--green)"></i></td></tr>
+          <tr><td>종속 데이터 체크</td><td><i class="ti ti-x" style="color:var(--muted2)"></i></td><td><i class="ti ti-check" style="color:var(--green)"></i></td><td><i class="ti ti-check" style="color:var(--green)"></i></td></tr>
+          <tr><td>롤백 단계 실행</td><td><i class="ti ti-x" style="color:var(--muted2)"></i></td><td><i class="ti ti-x" style="color:var(--muted2)"></i></td><td><i class="ti ti-check" style="color:var(--green)"></i></td></tr>
+          <tr><td>잠금 해제</td><td><i class="ti ti-x" style="color:var(--muted2)"></i></td><td><i class="ti ti-x" style="color:var(--muted2)"></i></td><td><i class="ti ti-check" style="color:var(--green)"></i></td></tr>
+          <tr><td>감사 로그 조회</td><td><i class="ti ti-x" style="color:var(--muted2)"></i></td><td><i class="ti ti-check" style="color:var(--green)"></i></td><td><i class="ti ti-check" style="color:var(--green)"></i></td></tr>
+        </tbody>
+      </table>
+
+      <h2><i class="ti ti-lock"></i> 보안 요구사항</h2>
+      <div class="card">
+        <ul class="spec-list">
+          <li class="red"><i class="ti ti-shield-lock"></i><span><strong>동시 처리 방지:</strong> 동일 계약번호 처리 중 다른 요청 시 <code>423 Locked</code> 반환</span></li>
+          <li class="red"><i class="ti ti-key"></i><span><strong>세션 검증:</strong> 모든 API 호출 시 JWT 토큰 + 2FA(TOTP) 검증</span></li>
+          <li class="yellow"><i class="ti ti-file-text"></i><span><strong>불변 로그:</strong> 감사 로그는 INSERT ONLY — UPDATE/DELETE 불가 (DB 트리거로 강제)</span></li>
+          <li class="blue"><i class="ti ti-world"></i><span><strong>IP 화이트리스트:</strong> 내부망 IP 대역만 허용 (외부 접근 차단)</span></li>
+          <li class="green"><i class="ti ti-database"></i><span><strong>SQL Injection:</strong> 모든 파라미터 Prepared Statement 처리 (MyBatis #{} 사용)</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ========================================================
+         11. 리스크 분석
+    ========================================================= -->
+    <section class="section" id="risk">
+      <h1 class="page-title">리스크 분석</h1>
+      <p class="page-subtitle">식별된 리스크 및 대응 방안</p>
+
+      <h2><i class="ti ti-alert-triangle"></i> 리스크 매트릭스</h2>
+      <div class="risk-matrix">
+        <div class="rm-cell header rm-label">가능성 / 영향</div>
+        <div class="rm-cell header">낮음</div>
+        <div class="rm-cell header">중간</div>
+        <div class="rm-cell header">높음</div>
+        <div class="rm-cell header rm-label">높음</div>
+        <div class="rm-cell mid">외부 API 지연</div>
+        <div class="rm-cell high">국세청 API 오류<br><span style="font-size:9px;font-weight:400">→ 재시도 로직</span></div>
+        <div class="rm-cell high">데이터 정합성 오류<br><span style="font-size:9px;font-weight:400">→ 트랜잭션 롤백</span></div>
+        <div class="rm-cell header rm-label">중간</div>
+        <div class="rm-cell low">권한 오설정</div>
+        <div class="rm-cell mid">처리 중 타임아웃</div>
+        <div class="rm-cell high">동시 처리 충돌<br><span style="font-size:9px;font-weight:400">→ Row Lock</span></div>
+        <div class="rm-cell header rm-label">낮음</div>
+        <div class="rm-cell low">UI 버그</div>
+        <div class="rm-cell low">로그 누락</div>
+        <div class="rm-cell mid">순서 우회 시도</div>
+      </div>
+
+      <h2><i class="ti ti-shield-check"></i> 주요 리스크 대응</h2>
+      <div class="card">
+        <table class="spec-table">
+          <thead><tr><th>리스크</th><th>대응 방안</th><th>담당</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>국세청 API 일시 오류</td>
+              <td>Exponential Backoff 재시도 (최대 3회), 실패 시 수동 처리 폴백 제공</td>
+              <td class="td-muted">백엔드팀</td>
+            </tr>
+            <tr>
+              <td>동시 처리로 인한 데이터 충돌</td>
+              <td>계약번호 기반 Redis/DB Lock 적용, 처리 중 상태 표시</td>
+              <td class="td-muted">백엔드팀</td>
+            </tr>
+            <tr>
+              <td>트랜잭션 중간 실패</td>
+              <td>SAVEPOINT 활용 부분 롤백, 처리 현황 감사 로그 보존</td>
+              <td class="td-muted">DBA</td>
+            </tr>
+            <tr>
+              <td>순서 강제 우회 (API 직접 호출)</td>
+              <td>서버 사이드 ORDER 검증 필수 적용, API 레벨 순서 체크</td>
+              <td class="td-muted">백엔드팀</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ========================================================
+         12. 일정 계획
+    ========================================================= -->
+    <section class="section" id="schedule">
+      <h1 class="page-title">일정 계획</h1>
+      <p class="page-subtitle">개발 단계별 마일스톤</p>
+
+      <h2><i class="ti ti-calendar"></i> 마일스톤</h2>
+      <div class="timeline">
+        <div class="tl-item done">
+          <div class="tl-title">Phase 0 — UI 프로토타이핑 <span class="tag green">완료</span></div>
+          <div class="tl-desc">2026.06 · HTML/CSS/JS 정적 프로토타입 완성 (v1 싱글뷰, v2 시뮬레이터)</div>
+        </div>
+        <div class="tl-item active">
+          <div class="tl-title">Phase 1 — 백엔드 API 개발 <span class="tag blue">진행 예정</span></div>
+          <div class="tl-desc">2026.07 · Spring Boot REST API 5종, 트랜잭션 로직, 권한 제어</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-title">Phase 2 — 외부 API 연동</div>
+          <div class="tl-desc">2026.08 · 국세청 현금영수증 API, 세금계산서 발행 시스템 연동</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-title">Phase 3 — 통합 테스트 & QA</div>
+          <div class="tl-desc">2026.09 · 시나리오 테스트, 부하 테스트, 보안 취약점 점검</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-title">Phase 4 — 운영 배포 & 모니터링</div>
+          <div class="tl-desc">2026.09.30 · 스테이징 → 프로덕션 배포, 처음 3개월 집중 모니터링</div>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-top:20px;">
+        <div class="card">
+          <div class="card-title"><i class="ti ti-users"></i> 투입 인력</div>
+          <table class="spec-table">
+            <thead><tr><th>역할</th><th>인원</th><th>기간</th></tr></thead>
+            <tbody>
+              <tr><td>UI/UX 기획·개발</td><td>1</td><td>Phase 0~1</td></tr>
+              <tr><td>백엔드 개발</td><td>2</td><td>Phase 1~2</td></tr>
+              <tr><td>DBA</td><td>1</td><td>Phase 1~3</td></tr>
+              <tr><td>QA</td><td>1</td><td>Phase 3</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-title"><i class="ti ti-checkup-list"></i> 완료 기준 (DoD)</div>
+          <ul class="spec-list">
+            <li class="green"><i class="ti ti-check"></i><span>6단계 롤백 E2E 시나리오 100% 통과</span></li>
+            <li class="green"><i class="ti ti-check"></i><span>감사 로그 모든 단계 기록 확인</span></li>
+            <li class="green"><i class="ti ti-check"></i><span>동시 처리 시나리오 이중 실행 차단 확인</span></li>
+            <li class="green"><i class="ti ti-check"></i><span>국세청 API Mock → 실연동 전환 완료</span></li>
+            <li class="green"><i class="ti ti-check"></i><span>SUPER_ADMIN 이외 접근 100% 차단 확인</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="info-box green">
+        <i class="ti ti-check"></i>
+        <div>UI 프로토타입 Phase 0은 <strong>완료</strong> 상태입니다. <a href="index.html" style="color:var(--green);font-weight:600;">index.html (v1 싱글뷰)</a> 및 <a href="index2.html" style="color:var(--green);font-weight:600;">index2.html (v2 시뮬레이터)</a>에서 확인 가능합니다.</div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+'use strict';
+
+/* ============================================================
+   NAVIGATION
+============================================================ */
+const navItems = document.querySelectorAll('.nav-item[data-target]');
+const sections = document.querySelectorAll('.section');
+
+navItems.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const target = btn.dataset.target;
+    navItems.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    sections.forEach(s => {
+      s.classList.toggle('visible', s.id === target);
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+});
+
+/* ============================================================
+   ACCORDION
+============================================================ */
+function toggleAcc(header) {
+  const body = header.nextElementSibling;
+  const isOpen = header.classList.contains('open');
+  header.classList.toggle('open', !isOpen);
+  body.classList.toggle('open', !isOpen);
+}
+
+/* ============================================================
+   PROGRESS BARS — animate on view
+============================================================ */
+function animateProgress() {
+  document.querySelectorAll('.progress-fill').forEach(el => {
+    const target = el.style.width;
+    el.style.width = '0';
+    setTimeout(() => { el.style.width = target; }, 100);
+  });
+}
+
+// Re-animate when background section becomes visible
+const observer = new MutationObserver(() => {
+  const bgSection = document.getElementById('background');
+  if (bgSection && bgSection.classList.contains('visible')) {
+    animateProgress();
+  }
+});
+document.querySelectorAll('.section').forEach(s => observer.observe(s, { attributes: true, attributeFilter: ['class'] }));
+
+// Initial animation if background is first visible
+window.addEventListener('DOMContentLoaded', animateProgress);
+</script>
+</body>
+</html>
