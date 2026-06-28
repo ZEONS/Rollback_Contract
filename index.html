@@ -3,354 +3,1318 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>계약만료 취소 — 싱글 뷰</title>
-  <link rel="stylesheet" href="style.css" />
+  <title>계약만료 취소 — 통합 뷰</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.9.0/tabler-icons.min.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #f0f4f8;
+      --surface:    #ffffff;
+      --surface2:   #f8fafc;
+      --border:     #e2e8f0;
+      --border2:    #eef2f7;
+      --text:       #1e293b;
+      --muted:      #64748b;
+      --muted2:     #94a3b8;
+
+      --blue:       #2563eb;
+      --blue-dk:    #1d4ed8;
+      --blue-lt:    #eff6ff;
+      --blue-md:    #bfdbfe;
+      --green:      #16a34a;
+      --green-lt:   #f0fdf4;
+      --green-md:   #bbf7d0;
+      --red:        #dc2626;
+      --red-lt:     #fef2f2;
+      --red-md:     #fecaca;
+      --orange:     #d97706;
+      --orange-lt:  #fffbeb;
+      --orange-md:  #fcd34d;
+      --purple:     #7c3aed;
+
+      --r:          12px;
+      --r-sm:       8px;
+      --shadow:     0 1px 4px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.04);
+      --shadow-md:  0 4px 16px rgba(0,0,0,.10), 0 1px 4px rgba(0,0,0,.06);
+      --font:       -apple-system,'Segoe UI',system-ui,sans-serif;
+      --mono:       'Cascadia Code','JetBrains Mono',Consolas,monospace;
+    }
+
+    body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; min-height: 100vh; }
+
+    /* ══════════════════════════════════════
+       TOPBAR
+    ══════════════════════════════════════ */
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+      height: 58px;
+      display: flex; align-items: center; gap: 16px;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 1px 0 var(--border), 0 2px 8px rgba(0,0,0,.04);
+    }
+    .tb-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .tb-logo {
+      width: 34px; height: 34px; border-radius: 9px;
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 17px;
+    }
+    .tb-name { font-size: 15px; font-weight: 800; color: var(--text); }
+    .tb-divider { width: 1px; height: 22px; background: var(--border); }
+    .tb-page { font-size: 13px; font-weight: 600; color: var(--muted); }
+    .tb-sep { flex: 1; }
+
+    /* 검색 */
+    .search-wrap { display: flex; align-items: center; gap: 8px; }
+    .search-input {
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-sm);
+      padding: 7px 14px;
+      font-size: 13px; font-weight: 600;
+      font-family: var(--mono);
+      color: var(--text); background: var(--surface2);
+      outline: none; width: 200px;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .search-input:focus { border-color: var(--blue); background: var(--surface); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+    .btn-search {
+      padding: 7px 16px; border-radius: var(--r-sm);
+      background: var(--blue); color: #fff; border: none;
+      font-size: 13px; font-weight: 700; cursor: pointer;
+      display: flex; align-items: center; gap: 5px;
+      transition: background .15s;
+    }
+    .btn-search:hover { background: var(--blue-dk); }
+
+    .tb-user {
+      display: flex; align-items: center; gap: 7px;
+      padding: 5px 12px; border-radius: 20px;
+      background: var(--blue-lt); border: 1px solid var(--blue-md);
+      font-size: 12px; font-weight: 700; color: var(--blue);
+    }
+
+    /* ══════════════════════════════════════
+       PAGE WRAP
+    ══════════════════════════════════════ */
+    .page { max-width: 1160px; margin: 0 auto; padding: 24px 24px 60px; }
+
+    /* ══════════════════════════════════════
+       CONTRACT CARD (상단)
+    ══════════════════════════════════════ */
+    .contract-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .cc-top {
+      display: flex; align-items: flex-start; gap: 16px;
+      padding: 20px 24px 18px;
+      border-bottom: 1px solid var(--border2);
+    }
+    .cc-icon {
+      width: 46px; height: 46px; flex-shrink: 0;
+      background: var(--blue-lt); border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; color: var(--blue);
+    }
+    .cc-info { flex: 1; min-width: 0; }
+    .cc-id { font-size: 11px; font-weight: 700; color: var(--muted); font-family: var(--mono); margin-bottom: 3px; }
+    .cc-name { font-size: 18px; font-weight: 800; }
+    .cc-addr { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .lock-pill {
+      flex-shrink: 0;
+      display: flex; align-items: center; gap: 6px;
+      background: var(--red-lt); border: 1px solid var(--red-md);
+      color: var(--red); border-radius: 20px;
+      padding: 5px 12px; font-size: 11px; font-weight: 700;
+    }
+    .cc-meta {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      border-top: 1px solid var(--border2);
+    }
+    .cc-meta-item {
+      padding: 14px 24px;
+      border-right: 1px solid var(--border2);
+    }
+    .cc-meta-item:last-child { border-right: none; }
+    .cm-label { font-size: 10px; font-weight: 700; color: var(--muted2); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+    .cm-value { font-size: 14px; font-weight: 700; }
+
+    /* ══════════════════════════════════════
+       4-STEP PIPELINE
+    ══════════════════════════════════════ */
+    .pipeline {
+      display: flex; align-items: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 14px 20px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow);
+      gap: 4px;
+    }
+    .pl-step {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 14px; border-radius: 20px;
+      border: 1.5px solid var(--border);
+      transition: all .3s;
+      flex: 1; justify-content: center;
+    }
+    .pl-step .pls-num {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--border); color: var(--muted2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 800; flex-shrink: 0;
+      transition: all .3s;
+    }
+    .pl-step .pls-label { font-size: 12px; font-weight: 600; color: var(--muted); transition: color .3s; }
+    .pl-step.done   { border-color: var(--green-md); background: var(--green-lt); }
+    .pl-step.done .pls-num { background: var(--green); color: #fff; }
+    .pl-step.done .pls-label { color: var(--green); }
+    .pl-step.active { border-color: var(--blue-md); background: var(--blue-lt); }
+    .pl-step.active .pls-num { background: var(--blue); color: #fff; }
+    .pl-step.active .pls-label { color: var(--blue); font-weight: 700; }
+    .pl-arrow { color: var(--border); font-size: 18px; flex-shrink: 0; }
+
+    /* ══════════════════════════════════════
+       MAIN GRID
+    ══════════════════════════════════════ */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 16px;
+      align-items: start;
+    }
+
+    /* ══════════════════════════════════════
+       LEFT: PROCESS STEPS
+    ══════════════════════════════════════ */
+    .steps-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .sp-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface2);
+    }
+    .sp-title {
+      font-size: 13px; font-weight: 700;
+      display: flex; align-items: center; gap: 7px; color: var(--text);
+    }
+    .sp-title i { font-size: 15px; color: var(--blue); }
+    .sp-actions { display: flex; gap: 8px; }
+    .btn-sm {
+      padding: 5px 12px; border-radius: var(--r-sm);
+      font-size: 11px; font-weight: 700; cursor: pointer;
+      display: flex; align-items: center; gap: 5px;
+      border: 1.5px solid var(--border); background: var(--surface);
+      color: var(--muted); transition: all .15s;
+    }
+    .btn-sm:hover { border-color: var(--blue); color: var(--blue); }
+    .btn-sm.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+    .btn-sm.primary:hover { background: var(--blue-dk); }
+    .btn-sm:disabled { opacity: .45; cursor: not-allowed; }
+
+    /* 각 단계 아이템 */
+    .step-item { border-bottom: 1px solid var(--border2); }
+    .step-item:last-child { border-bottom: none; }
+
+    .step-row {
+      display: flex; align-items: center; gap: 14px;
+      padding: 16px 20px;
+      cursor: pointer;
+      transition: background .15s;
+      position: relative; overflow: hidden;
+    }
+    .step-row:hover { background: var(--surface2); }
+
+    /* shimmer overlay for active */
+    .step-item.active .step-row::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(90deg,transparent 0%,rgba(37,99,235,.05) 50%,transparent 100%);
+      animation: shimmer 2s infinite;
+      pointer-events: none;
+    }
+    @keyframes shimmer { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
+
+    /* 왼쪽 색상 바 */
+    .step-item { border-left: 4px solid transparent; }
+    .step-item.active { border-left-color: var(--blue); background: linear-gradient(to right, rgba(37,99,235,.03), transparent); }
+    .step-item.done   { border-left-color: var(--green); }
+
+    /* 아이콘 */
+    .si-icon {
+      width: 42px; height: 42px; flex-shrink: 0; border-radius: 11px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 19px;
+      background: var(--surface2); border: 1.5px solid var(--border);
+      color: var(--muted2); transition: all .3s;
+    }
+    .step-item.active .si-icon { background: var(--blue); border-color: var(--blue); color: #fff; box-shadow: 0 4px 12px rgba(37,99,235,.3); }
+    .step-item.done .si-icon   { background: var(--green); border-color: var(--green); color: #fff; }
+
+    /* 본문 */
+    .si-body { flex: 1; min-width: 0; }
+    .si-title { font-size: 14px; font-weight: 700; margin-bottom: 2px; transition: color .3s; }
+    .step-item.active .si-title { color: var(--blue); }
+    .step-item.done .si-title   { color: var(--green); }
+    .si-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+    /* 우측 상태 */
+    .si-right { flex-shrink: 0; text-align: right; }
+    .si-badge {
+      display: inline-block;
+      padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;
+      background: var(--surface2); border: 1px solid var(--border); color: var(--muted2);
+      transition: all .3s; white-space: nowrap;
+    }
+    .step-item.active .si-badge { background: var(--blue); border-color: var(--blue); color: #fff; animation: pulseBadge .9s ease-in-out infinite; }
+    @keyframes pulseBadge { 0%,100%{opacity:1} 50%{opacity:.65} }
+    .step-item.done .si-badge   { background: var(--green-lt); border-color: var(--green-md); color: var(--green); animation: none; }
+    .si-count { font-size: 10px; color: var(--muted2); margin-top: 3px; }
+    .step-item.done .si-count   { color: var(--green); }
+    .si-chevron { font-size: 14px; color: var(--muted2); margin-top: 6px; transition: transform .25s; }
+    .step-item.open .si-chevron { transform: rotate(180deg); }
+
+    /* ── DETAIL PANEL (확장) ── */
+    .step-detail {
+      max-height: 0; overflow: hidden;
+      transition: max-height .35s ease;
+      background: var(--surface2);
+      border-top: 0 solid var(--border2);
+    }
+    .step-detail.open {
+      max-height: 600px;
+      border-top: 1px solid var(--border2);
+    }
+    .sd-inner { padding: 14px 20px 16px 76px; }
+
+    /* 데이터 항목 행 */
+    .data-items { display: flex; flex-direction: column; gap: 7px; margin-bottom: 12px; }
+    .data-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      transition: all .35s;
+    }
+    .data-item.processing {
+      border-color: var(--blue-md); background: var(--blue-lt);
+      animation: itemPulse .8s ease-in-out infinite;
+    }
+    @keyframes itemPulse { 0%,100%{opacity:1} 50%{opacity:.7} }
+    .data-item.done { border-color: var(--green-md); background: var(--green-lt); }
+    .di-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+      background: var(--muted2); transition: background .3s;
+    }
+    .data-item.processing .di-dot { background: var(--blue); }
+    .data-item.done .di-dot       { background: var(--green); }
+    .di-id { font-size: 11px; font-weight: 700; font-family: var(--mono); color: var(--text); min-width: 100px; }
+    .di-label { font-size: 11px; color: var(--muted); flex: 1; }
+    .di-status {
+      font-size: 10px; font-weight: 700; padding: 2px 8px;
+      border-radius: 10px; white-space: nowrap;
+      background: var(--surface2); color: var(--muted2); border: 1px solid var(--border);
+      transition: all .3s;
+    }
+    .data-item.processing .di-status { background: var(--blue); color: #fff; border-color: var(--blue); }
+    .data-item.done .di-status       { background: var(--green-lt); color: var(--green); border-color: var(--green-md); }
+    .di-time { font-size: 10px; color: var(--muted2); min-width: 55px; text-align: right; font-family: var(--mono); }
+    .data-item.done .di-time { color: var(--green); }
+
+    /* 처리 안내 */
+    .sd-guide {
+      background: var(--blue-lt); border: 1px solid var(--blue-md);
+      border-radius: var(--r-sm); padding: 10px 13px;
+      font-size: 12px; color: #1e40af; line-height: 1.65;
+      display: flex; gap: 8px;
+    }
+    .sd-guide.done { background: var(--green-lt); border-color: var(--green-md); color: var(--green); }
+    .sd-guide i { flex-shrink: 0; font-size: 15px; margin-top: 1px; }
+
+    /* ══════════════════════════════════════
+       RIGHT PANEL
+    ══════════════════════════════════════ */
+    .right-col { display: flex; flex-direction: column; gap: 12px; }
+
+    /* 전체 진행률 */
+    .progress-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 18px 20px;
+      box-shadow: var(--shadow);
+    }
+    .pc-head {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      margin-bottom: 12px;
+    }
+    .pc-head .label { font-size: 12px; font-weight: 700; color: var(--muted); }
+    .pc-pct { font-size: 28px; font-weight: 800; color: var(--blue); font-variant-numeric: tabular-nums; line-height: 1; }
+    .pc-bar { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; margin-bottom: 14px; }
+    .pc-fill {
+      height: 100%; border-radius: 5px;
+      background: linear-gradient(90deg, var(--blue), var(--purple));
+      width: 0%; transition: width .6s ease;
+    }
+    .pc-fill.done { background: linear-gradient(90deg, var(--green), #22c55e); }
+    .pc-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .pc-stat {
+      text-align: center; padding: 10px 8px;
+      background: var(--surface2); border: 1px solid var(--border2);
+      border-radius: var(--r-sm);
+    }
+    .pc-stat .sv { font-size: 20px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+    .pc-stat .sl { font-size: 10px; color: var(--muted2); margin-top: 2px; }
+    .pc-stat.green .sv { color: var(--green); }
+    .pc-stat.blue .sv  { color: var(--blue); }
+
+    /* 처리 이력 */
+    .log-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    .lc-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface2);
+    }
+    .lc-title { font-size: 12px; font-weight: 700; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+    .btn-clear { background: none; border: none; font-size: 11px; color: var(--muted2); cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+    .btn-clear:hover { color: var(--red); background: var(--red-lt); }
+    .log-body { max-height: 220px; overflow-y: auto; }
+    .log-empty { padding: 20px; text-align: center; color: var(--muted2); font-size: 12px; }
+    .log-entry {
+      display: flex; align-items: flex-start; gap: 8px;
+      padding: 9px 16px; border-bottom: 1px solid var(--border2);
+      font-size: 11px; line-height: 1.5;
+      animation: fadeIn .3s ease;
+    }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+    .log-entry:last-child { border-bottom: none; }
+    .le-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
+    .le-dot.blue   { background: var(--blue); }
+    .le-dot.green  { background: var(--green); }
+    .le-dot.orange { background: var(--orange); }
+    .le-dot.red    { background: var(--red); }
+    .le-time { color: var(--muted2); font-family: var(--mono); flex-shrink: 0; }
+    .le-msg  { color: var(--text); flex: 1; }
+
+    /* 잠금 해제 버튼 */
+    .unlock-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
+    .btn-unlock {
+      width: 100%; padding: 13px;
+      border-radius: var(--r-sm);
+      font-size: 14px; font-weight: 700;
+      cursor: not-allowed; border: none;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      background: var(--surface2); color: var(--muted2);
+      transition: all .3s;
+    }
+    .btn-unlock.ready {
+      background: linear-gradient(135deg, var(--green), #22c55e);
+      color: #fff; cursor: pointer;
+      box-shadow: 0 4px 16px rgba(22,163,74,.35);
+    }
+    .btn-unlock.ready:hover { filter: brightness(1.06); transform: translateY(-1px); }
+    .btn-unlock.complete { background: var(--green-lt); color: var(--green); border: 1.5px solid var(--green-md); cursor: default; }
+    .unlock-hint {
+      margin-top: 8px; font-size: 11px; color: var(--muted2);
+      text-align: center; line-height: 1.5;
+    }
+
+    /* ══════════════════════════════════════
+       MODAL
+    ══════════════════════════════════════ */
+    .modal-bd {
+      position: fixed; inset: 0;
+      background: rgba(15,23,42,.55);
+      backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200;
+    }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px; padding: 36px 32px;
+      max-width: 420px; width: 90%;
+      box-shadow: 0 24px 80px rgba(0,0,0,.2);
+      animation: popIn .35s cubic-bezier(.34,1.56,.64,1);
+      text-align: center;
+    }
+    @keyframes popIn { from{transform:scale(.85);opacity:0} to{transform:scale(1);opacity:1} }
+    .modal-icon {
+      width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 20px;
+      background: linear-gradient(135deg, var(--green), #22c55e);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 30px; color: #fff;
+      box-shadow: 0 8px 28px rgba(22,163,74,.35);
+    }
+    .modal h2 { font-size: 20px; font-weight: 800; margin-bottom: 8px; }
+    .modal .modal-sub { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 22px; }
+    .modal-summary {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--r-sm); padding: 0;
+      overflow: hidden; margin-bottom: 22px; text-align: left;
+    }
+    .ms-row {
+      display: flex; justify-content: space-between;
+      padding: 10px 16px; border-bottom: 1px solid var(--border2);
+      font-size: 12px;
+    }
+    .ms-row:last-child { border-bottom: none; }
+    .ms-row .k { color: var(--muted); }
+    .ms-row .v { font-weight: 700; }
+    .ms-row .v.green { color: var(--green); }
+    .btn-modal-close {
+      width: 100%; padding: 13px;
+      background: var(--blue); color: #fff; border: none;
+      border-radius: var(--r-sm); font-size: 14px; font-weight: 700;
+      cursor: pointer; transition: background .15s;
+    }
+    .btn-modal-close:hover { background: var(--blue-dk); }
+
+    /* ══════════════════════════════════════
+       TOAST
+    ══════════════════════════════════════ */
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: #1e293b; color: #fff;
+      padding: 10px 20px; border-radius: 30px;
+      font-size: 13px; font-weight: 600;
+      display: flex; align-items: center; gap: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.25);
+      z-index: 300; white-space: nowrap;
+      animation: toastUp .3s ease;
+    }
+    @keyframes toastUp { from{transform:translateX(-50%) translateY(16px);opacity:0} to{transform:translateX(-50%) translateY(0);opacity:1} }
+
+    /* ══════════════════════════════════════
+       RESPONSIVE
+    ══════════════════════════════════════ */
+    @media (max-width: 860px) {
+      .main-grid { grid-template-columns: 1fr; }
+      .cc-meta { grid-template-columns: 1fr 1fr; }
+      .cc-meta-item:nth-child(2) { border-right: none; }
+      .cc-meta-item:nth-child(3) { border-bottom: none; }
+      .pipeline { flex-wrap: wrap; }
+      .pl-step { flex: none; min-width: 120px; }
+      .sd-inner { padding-left: 20px; }
+    }
+    @media (max-width: 560px) {
+      .topbar { padding: 0 16px; gap: 10px; }
+      .search-input { width: 140px; }
+      .page { padding: 16px 12px 60px; }
+      .cc-meta { grid-template-columns: 1fr; }
+      .cc-meta-item { border-right: none !important; border-bottom: 1px solid var(--border2) !important; }
+      .cc-meta-item:last-child { border-bottom: none !important; }
+      .tb-page { display: none; }
+    }
+  </style>
 </head>
 <body>
-  <div class="page">
 
-    <!-- 상단 헤더 -->
-    <div class="topbar">
-      <div class="topbar-left">
-        <i class="ti ti-file-invoice page-icon" aria-hidden="true"></i>
-        <span class="page-title">계약만료 취소 — 싱글 뷰</span>
-        <span class="badge-expire">
-          <i class="ti ti-lock" aria-hidden="true"></i> 마감 잠금 상태
-        </span>
-      </div>
-      <div class="search-bar">
-        <input type="text" id="contractInput" value="CONT-2024-00892" placeholder="계약번호 입력" />
-        <button id="searchBtn">
-          <i class="ti ti-search" aria-hidden="true"></i> 조회
-        </button>
-      </div>
-    </div>
+<!-- ═════════════════════════════════════════
+     TOP BAR
+═════════════════════════════════════════ -->
+<div class="topbar">
+  <div class="tb-brand">
+    <div class="tb-logo"><i class="ti ti-building"></i></div>
+    <div class="tb-name">계약 관리</div>
+  </div>
+  <div class="tb-divider"></div>
+  <div class="tb-page">계약만료 취소</div>
+  <div class="tb-sep"></div>
+  <div class="search-wrap">
+    <input class="search-input" id="searchInput" type="text" value="CONT-2024-00892" placeholder="계약번호 입력" />
+    <button class="btn-search" id="searchBtn"><i class="ti ti-search"></i> 조회</button>
+  </div>
+  <div class="tb-user"><i class="ti ti-user-circle"></i> 홍길동</div>
+</div>
 
-    <!-- 계약 정보 카드 -->
-    <div class="contract-card" id="contractCard">
-      <div class="contract-header">
-        <div>
-          <div class="contract-id" id="contractId">계약번호 CONT-2024-00892 · re_cont_master</div>
-          <div class="contract-name" id="contractName">(주)에이스유통 — 서울시 강남구 역삼동 B동 502호</div>
-        </div>
-        <div class="status-locked">
-          <i class="ti ti-alert-triangle" aria-hidden="true"></i>
-          <span>이 계약은 결산 마감 처리되어 직접 수정이 불가합니다</span>
-        </div>
+<div class="page">
+
+  <!-- ════════════════════════════════════
+       CONTRACT CARD
+  ════════════════════════════════════ -->
+  <div class="contract-card">
+    <div class="cc-top">
+      <div class="cc-icon"><i class="ti ti-building-store"></i></div>
+      <div class="cc-info">
+        <div class="cc-id" id="cc-id">계약번호 CONT-2024-00892</div>
+        <div class="cc-name" id="cc-name">(주)에이스유통</div>
+        <div class="cc-addr" id="cc-addr">서울시 강남구 역삼동 B동 502호</div>
       </div>
-      <div class="contract-meta">
-        <div class="meta-item">
-          <div class="meta-label">계약 기간</div>
-          <div class="meta-value" id="metaPeriod">2022.01.01 ~ 2024.12.31</div>
-        </div>
-        <div class="meta-item">
-          <div class="meta-label">만료 처리일</div>
-          <div class="meta-value" id="metaExpiry">2024.12.31</div>
-        </div>
-        <div class="meta-item">
-          <div class="meta-label">보증금</div>
-          <div class="meta-value" id="metaDeposit">₩ 50,000,000</div>
-        </div>
-        <div class="meta-item">
-          <div class="meta-label">date_last_chg</div>
-          <div class="meta-value mono" id="metaLastChg">2025-01-03 09:12</div>
-        </div>
+      <div class="lock-pill" id="lockPill">
+        <i class="ti ti-lock"></i>
+        <span id="lockPillText">결산 마감 잠금</span>
       </div>
     </div>
-
-    <!-- 4단계 진행 표시바 -->
-    <div class="steps-bar">
-      <div class="step step-done">
-        <div class="step-num"><i class="ti ti-check" aria-hidden="true"></i></div>
-        <span class="step-label">1 · 요청 감지</span>
+    <div class="cc-meta">
+      <div class="cc-meta-item">
+        <div class="cm-label">계약 기간</div>
+        <div class="cm-value" id="cc-period">2022.01.01 ~ 2024.12.31</div>
       </div>
-      <i class="ti ti-chevron-right step-arrow" aria-hidden="true"></i>
-      <div class="step step-done">
-        <div class="step-num"><i class="ti ti-check" aria-hidden="true"></i></div>
-        <span class="step-label">2 · 종속 데이터 체크</span>
+      <div class="cc-meta-item">
+        <div class="cm-label">만료 처리일</div>
+        <div class="cm-value" id="cc-expiry">2024.12.31</div>
       </div>
-      <i class="ti ti-chevron-right step-arrow" aria-hidden="true"></i>
-      <div class="step step-active" id="step3">
-        <div class="step-num">3</div>
-        <span class="step-label">3 · 역순 취소 (Rollback)</span>
+      <div class="cc-meta-item">
+        <div class="cm-label">보증금</div>
+        <div class="cm-value" id="cc-deposit">₩ 50,000,000</div>
       </div>
-      <i class="ti ti-chevron-right step-arrow" aria-hidden="true"></i>
-      <div class="step step-pending" id="step4">
-        <div class="step-num">4</div>
-        <span class="step-label">4 · 마스터 복원</span>
+      <div class="cc-meta-item">
+        <div class="cm-label">최종 변경</div>
+        <div class="cm-value" id="cc-lastChg">2025-01-03 09:12</div>
       </div>
     </div>
-
-    <!-- 메인 그리드 -->
-    <div class="main-grid">
-
-      <!-- 종속 데이터 트리 -->
-      <div class="tree-panel">
-        <div class="panel-header">
-          <span class="panel-title">
-            <i class="ti ti-sitemap" aria-hidden="true"></i> 종속 데이터 현황 트리
-          </span>
-          <div class="legend">
-            <div class="leg-item"><span class="dot dot-red"></span>삭제 필요</div>
-            <div class="leg-item"><span class="dot dot-yellow"></span>확인 필요</div>
-            <div class="leg-item"><span class="dot dot-green"></span>취소 완료</div>
-          </div>
-        </div>
-
-        <!-- 루트 노드 (계약 마스터) -->
-        <div class="tree-root">
-          <div class="root-row">
-            <div class="root-icon"><i class="ti ti-building" aria-hidden="true"></i></div>
-            <div>
-              <div class="root-label">계약 마스터 · 호실 상세</div>
-              <div class="root-sub">re_cont_master / re_room_master / re_cont_detail</div>
-            </div>
-            <div class="root-status">
-              <span class="dot dot-red"></span>
-              <span class="root-status-text">마감 잠금</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 하위 데이터 아이템 목록 -->
-        <div class="tree-items" id="treeItems">
-
-          <div class="tree-item" data-key="cash" data-status="red">
-            <div class="item-row">
-              <span class="tree-indent"><i class="ti ti-corner-down-right" aria-hidden="true"></i></span>
-              <span class="item-status red"></span>
-              <div class="item-info">
-                <div class="item-name">현금영수증</div>
-                <div class="item-table">tb_cash_receipt / tb_cash_receipt_mst / tb_cash_temp</div>
-              </div>
-              <span class="item-count" id="count-cash">3건</span>
-              <div class="item-actions">
-                <button class="btn-action btn-del" data-key="cash">
-                  <i class="ti ti-api" aria-hidden="true"></i> 자진취소 API
-                </button>
-              </div>
-            </div>
-            <div class="item-detail" id="detail-cash">
-              <div class="detail-box">
-                <div class="detail-title"><i class="ti ti-info-circle" aria-hidden="true"></i> 처리 안내</div>
-                <p>수납 취소 이전에 파생된 현금영수증을 <strong>자진 취소 API</strong>를 통해 먼저 처리해야 합니다.<br/>
-                   취소 후 <code>tb_cash_temp</code> 상태 코드를 <code>CANCEL</code>로 업데이트합니다.</p>
-                <div class="detail-actions">
-                  <button class="btn-confirm" data-key="cash">
-                    <i class="ti ti-circle-check" aria-hidden="true"></i> 취소 처리 완료 확인
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="tree-item" data-key="tax" data-status="red">
-            <div class="item-row">
-              <span class="tree-indent"><i class="ti ti-corner-down-right" aria-hidden="true"></i></span>
-              <span class="item-status red"></span>
-              <div class="item-info">
-                <div class="item-name">세금계산서</div>
-                <div class="item-table">tb_tax / tb_tax_line / re_bill_request</div>
-              </div>
-              <span class="item-count" id="count-tax">2건</span>
-              <div class="item-actions">
-                <button class="btn-action btn-del" data-key="tax">
-                  <i class="ti ti-receipt-refund" aria-hidden="true"></i> 수정계산서 발행
-                </button>
-              </div>
-            </div>
-            <div class="item-detail" id="detail-tax">
-              <div class="detail-box">
-                <div class="detail-title"><i class="ti ti-info-circle" aria-hidden="true"></i> 처리 안내</div>
-                <p>국세청 승인번호를 먼저 확인한 후 <strong>마이너스(수정) 세금계산서</strong>를 발행하거나 발행 취소 연동을 처리합니다.<br/>
-                   <code>tb_tax</code>의 승인 상태를 확인 후 진행하세요.</p>
-                <div class="detail-actions">
-                  <button class="btn-confirm" data-key="tax">
-                    <i class="ti ti-circle-check" aria-hidden="true"></i> 취소 처리 완료 확인
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="tree-item" data-key="receipt" data-status="yellow">
-            <div class="item-row">
-              <span class="tree-indent"><i class="ti ti-corner-down-right" aria-hidden="true"></i></span>
-              <span class="item-status yellow"></span>
-              <div class="item-info">
-                <div class="item-name">수납 데이터</div>
-                <div class="item-table">re_bill_receipt / re_bill_receipt_acc_if</div>
-              </div>
-              <span class="item-count" id="count-receipt">5건</span>
-              <div class="item-actions">
-                <button class="btn-action btn-check" data-key="receipt">
-                  <i class="ti ti-link" aria-hidden="true"></i> 원장 연동 확인
-                </button>
-              </div>
-            </div>
-            <div class="item-detail" id="detail-receipt">
-              <div class="detail-box">
-                <div class="detail-title"><i class="ti ti-info-circle" aria-hidden="true"></i> 처리 안내</div>
-                <p>청구 데이터에 매핑된 <strong>수납 및 입금 원장 연동</strong>을 취소 처리합니다.<br/>
-                   현금영수증·세금계산서 취소 완료 후 진행해야 합니다.</p>
-                <div class="detail-actions">
-                  <button class="btn-confirm" data-key="receipt">
-                    <i class="ti ti-circle-check" aria-hidden="true"></i> 취소 처리 완료 확인
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="tree-item" data-key="bill" data-status="yellow">
-            <div class="item-row">
-              <span class="tree-indent"><i class="ti ti-corner-down-right" aria-hidden="true"></i></span>
-              <span class="item-status yellow"></span>
-              <div class="item-info">
-                <div class="item-name">청구 데이터</div>
-                <div class="item-table">re_bill_request / re_bill_request_acc_if</div>
-              </div>
-              <span class="item-count" id="count-bill">7건</span>
-              <div class="item-actions">
-                <button class="btn-action btn-check" data-key="bill">
-                  <i class="ti ti-arrows-exchange" aria-hidden="true"></i> 역추적 확인
-                </button>
-              </div>
-            </div>
-            <div class="item-detail" id="detail-bill">
-              <div class="detail-box">
-                <div class="detail-title"><i class="ti ti-info-circle" aria-hidden="true"></i> 처리 안내</div>
-                <p>변경 기준월에 속하는 <strong>약정금액 및 실비 청구 데이터</strong>를 역추적 후 삭제 처리합니다.<br/>
-                   수납 데이터 취소 완료 후 진행해야 합니다.</p>
-                <div class="detail-actions">
-                  <button class="btn-confirm" data-key="bill">
-                    <i class="ti ti-circle-check" aria-hidden="true"></i> 취소 처리 완료 확인
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="tree-item" data-key="refund" data-status="green">
-            <div class="item-row">
-              <span class="tree-indent"><i class="ti ti-corner-down-right" aria-hidden="true"></i></span>
-              <span class="item-status green"></span>
-              <div class="item-info">
-                <div class="item-name">보증금 정산</div>
-                <div class="item-table">re_cont_refund</div>
-              </div>
-              <span class="item-count" id="count-refund">1건</span>
-              <div class="item-actions">
-                <button class="btn-action btn-done" disabled>
-                  <i class="ti ti-circle-check" aria-hidden="true"></i> 취소 완료
-                </button>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      <!-- 오른쪽 패널 -->
-      <div class="side-panel">
-
-        <!-- 역순 롤백 가이드 -->
-        <div class="guide-panel">
-          <div class="panel-header">
-            <span class="panel-title">
-              <i class="ti ti-list-check" aria-hidden="true"></i> 역순 롤백 가이드
-            </span>
-          </div>
-          <div class="guide-steps">
-            <div class="guide-step" id="gs-cash">
-              <div class="gs-num gs-red">1</div>
-              <div class="gs-content">
-                <div class="gs-title">현금영수증 자진 취소</div>
-                <div class="gs-desc">수납 취소 전 파생된 현금영수증 자진 취소 API를 먼저 호출합니다.</div>
-                <span class="gs-tag gs-tag-red">tb_cash_receipt</span>
-              </div>
-            </div>
-            <div class="guide-step" id="gs-tax">
-              <div class="gs-num gs-red">2</div>
-              <div class="gs-content">
-                <div class="gs-title">세금계산서 발행 취소</div>
-                <div class="gs-desc">국세청 승인번호 확인 후 마이너스(수정) 계산서를 발행합니다.</div>
-                <span class="gs-tag gs-tag-red">tb_tax / tb_tax_line</span>
-              </div>
-            </div>
-            <div class="guide-step" id="gs-receipt">
-              <div class="gs-num gs-yellow">3</div>
-              <div class="gs-content">
-                <div class="gs-title">수납 및 원장 취소</div>
-                <div class="gs-desc">청구에 매핑된 수납 입금 원장 연동을 취소 처리합니다.</div>
-                <span class="gs-tag gs-tag-yellow">re_bill_receipt</span>
-              </div>
-            </div>
-            <div class="guide-step" id="gs-bill">
-              <div class="gs-num gs-yellow">4</div>
-              <div class="gs-content">
-                <div class="gs-title">청구 데이터 삭제</div>
-                <div class="gs-desc">변경 기준월 약정금액 및 실비 청구 역추적 후 삭제합니다.</div>
-                <span class="gs-tag gs-tag-yellow">re_bill_request</span>
-              </div>
-            </div>
-            <div class="guide-step" id="gs-master">
-              <div class="gs-num gs-gray">5</div>
-              <div class="gs-content">
-                <div class="gs-title">마스터 이력 동기화</div>
-                <div class="gs-desc">re_cont_master의 date_chg, date_last_chg를 최종 업데이트합니다.</div>
-                <span class="gs-tag gs-tag-gray">re_cont_master</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 잠금 해제 버튼 영역 -->
-        <div class="unlock-panel">
-          <button class="btn-unlock" id="unlockBtn" disabled>
-            <i class="ti ti-lock-open" aria-hidden="true"></i> 계약만료 잠금 해제
-          </button>
-          <div class="info-box" id="infoBox">
-            <i class="ti ti-info-circle" aria-hidden="true"></i>
-            <span id="infoText">현금영수증·세금계산서·수납 데이터 삭제 완료 후 잠금 해제가 활성화됩니다.</span>
-          </div>
-        </div>
-
-        <!-- 이력 로그 -->
-        <div class="log-panel">
-          <div class="panel-header">
-            <span class="panel-title">
-              <i class="ti ti-history" aria-hidden="true"></i> 처리 이력
-            </span>
-            <button class="btn-clear-log" id="clearLogBtn">초기화</button>
-          </div>
-          <div class="log-list" id="logList">
-            <div class="log-empty">처리 완료 항목이 여기에 기록됩니다.</div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- 잠금 해제 성공 모달 -->
-    <div class="modal-backdrop" id="modalBackdrop" style="display:none;">
-      <div class="modal">
-        <div class="modal-icon"><i class="ti ti-lock-open" aria-hidden="true"></i></div>
-        <div class="modal-title">계약만료 잠금 해제 완료</div>
-        <div class="modal-desc">
-          계약번호 <strong id="modalContractId">CONT-2024-00892</strong>의 마감 잠금이 해제되었습니다.<br/>
-          <code>re_cont_master</code>의 <code>date_chg</code>, <code>date_last_chg</code>가 업데이트되었습니다.
-        </div>
-        <div class="modal-meta" id="modalMeta"></div>
-        <button class="modal-close" id="modalClose">
-          <i class="ti ti-check" aria-hidden="true"></i> 확인
-        </button>
-      </div>
-    </div>
-
   </div>
 
-  <script src="app.js"></script>
+  <!-- ════════════════════════════════════
+       4-STEP PIPELINE
+  ════════════════════════════════════ -->
+  <div class="pipeline">
+    <div class="pl-step done" id="pl-1">
+      <div class="pls-num"><i class="ti ti-check"></i></div>
+      <div class="pls-label">요청 감지</div>
+    </div>
+    <i class="ti ti-chevron-right pl-arrow"></i>
+    <div class="pl-step done" id="pl-2">
+      <div class="pls-num"><i class="ti ti-check"></i></div>
+      <div class="pls-label">종속 데이터 체크</div>
+    </div>
+    <i class="ti ti-chevron-right pl-arrow"></i>
+    <div class="pl-step active" id="pl-3">
+      <div class="pls-num">3</div>
+      <div class="pls-label">역순 취소</div>
+    </div>
+    <i class="ti ti-chevron-right pl-arrow"></i>
+    <div class="pl-step" id="pl-4">
+      <div class="pls-num">4</div>
+      <div class="pls-label">마스터 복원</div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════
+       MAIN GRID
+  ════════════════════════════════════ -->
+  <div class="main-grid">
+
+    <!-- ── LEFT: 처리 단계 패널 ── -->
+    <div class="steps-panel">
+      <div class="sp-header">
+        <div class="sp-title">
+          <i class="ti ti-list-check"></i> 취소 처리 단계
+        </div>
+        <div class="sp-actions">
+          <button class="btn-sm" id="btnReset"><i class="ti ti-refresh"></i> 초기화</button>
+          <button class="btn-sm" id="btnStep"><i class="ti ti-player-skip-forward"></i> 단계 실행</button>
+          <button class="btn-sm primary" id="btnPlay"><i class="ti ti-player-play"></i> 자동 실행</button>
+        </div>
+      </div>
+
+      <div id="stepsList"><!-- JS 렌더링 --></div>
+    </div>
+
+    <!-- ── RIGHT ── -->
+    <div class="right-col">
+
+      <!-- 진행률 카드 -->
+      <div class="progress-card">
+        <div class="pc-head">
+          <div class="label">전체 진행률</div>
+          <div class="pc-pct" id="pct">0%</div>
+        </div>
+        <div class="pc-bar"><div class="pc-fill" id="pcFill"></div></div>
+        <div class="pc-stats">
+          <div class="pc-stat green">
+            <div class="sv" id="statDone">0</div>
+            <div class="sl">완료</div>
+          </div>
+          <div class="pc-stat blue">
+            <div class="sv" id="statTotal">0</div>
+            <div class="sl">전체 단계</div>
+          </div>
+          <div class="pc-stat">
+            <div class="sv" id="statItems">0</div>
+            <div class="sl">처리 항목</div>
+          </div>
+          <div class="pc-stat">
+            <div class="sv" id="statTime">0s</div>
+            <div class="sl">경과 시간</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 이력 로그 -->
+      <div class="log-card">
+        <div class="lc-head">
+          <div class="lc-title"><i class="ti ti-history"></i> 처리 이력</div>
+          <button class="btn-clear" id="btnClearLog">초기화</button>
+        </div>
+        <div class="log-body" id="logBody">
+          <div class="log-empty">처리 완료 항목이 기록됩니다.</div>
+        </div>
+      </div>
+
+      <!-- 잠금 해제 -->
+      <div class="unlock-card">
+        <button class="btn-unlock" id="btnUnlock">
+          <i class="ti ti-lock"></i> 계약만료 잠금 해제
+        </button>
+        <div class="unlock-hint" id="unlockHint">
+          모든 취소 처리 완료 후 활성화됩니다.
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- /page -->
+
+<!-- ════════════════════════════════════
+     MODAL: 완료
+════════════════════════════════════ -->
+<div class="modal-bd" id="modalBd" style="display:none;">
+  <div class="modal">
+    <div class="modal-icon"><i class="ti ti-check"></i></div>
+    <h2>계약만료 취소 완료</h2>
+    <p class="modal-sub">
+      모든 관련 데이터가 정리되고<br/>계약 잠금이 해제되었습니다.
+    </p>
+    <div class="modal-summary">
+      <div class="ms-row"><span class="k">계약번호</span><span class="v" id="m-contId">—</span></div>
+      <div class="ms-row"><span class="k">임차인</span><span class="v" id="m-name">—</span></div>
+      <div class="ms-row"><span class="k">처리 완료</span><span class="v" id="m-time">—</span></div>
+      <div class="ms-row"><span class="k">처리 항목</span><span class="v green" id="m-items">—</span></div>
+      <div class="ms-row"><span class="k">계약 상태</span><span class="v green">잠금 해제 · 활성화</span></div>
+    </div>
+    <button class="btn-modal-close" id="btnModalClose">확인</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ──────────────────────────────────────────
+   DATA
+────────────────────────────────────────── */
+const CONTRACTS = {
+  'CONT-2024-00892': {
+    name: '(주)에이스유통', addr: '서울시 강남구 역삼동 B동 502호',
+    period: '2022.01.01 ~ 2024.12.31', expiry: '2024.12.31',
+    deposit: '₩ 50,000,000', lastChg: '2025-01-03 09:12',
+    steps: [
+      {
+        key: 'cash', icon: 'ti-receipt', title: '현금영수증 취소',
+        desc: '발급된 현금영수증을 국세청에 자동 취소합니다.',
+        guide: '수납 취소 전 현금영수증을 먼저 자진취소 API로 처리해야 합니다.',
+        doneTip: '현금영수증 3건이 국세청에 자진취소 처리되었습니다.',
+        badge: '자진취소 API', doneBadge: '취소 완료',
+        items: [
+          { id: 'CR-2024-001', label: '현금영수증 · ₩1,200,000', status: '발급' },
+          { id: 'CR-2024-002', label: '현금영수증 · ₩800,000',   status: '발급' },
+          { id: 'CR-2024-003', label: '현금영수증 · ₩600,000',   status: '발급' },
+        ],
+        ms: 1400, logColor: 'blue', logMsg: '현금영수증 3건 자진취소 완료',
+      },
+      {
+        key: 'tax', icon: 'ti-file-invoice', title: '세금계산서 취소',
+        desc: '발행된 세금계산서를 수정·취소 처리합니다.',
+        guide: '국세청 승인번호 확인 후 마이너스(수정) 세금계산서를 발행합니다.',
+        doneTip: '세금계산서 2건 수정 발행이 완료되었습니다.',
+        badge: '수정계산서 발행', doneBadge: '취소 완료',
+        items: [
+          { id: 'TAX-2024-031', label: '세금계산서 · ₩2,200,000', status: '승인' },
+          { id: 'TAX-2024-032', label: '세금계산서 · ₩1,800,000', status: '승인' },
+        ],
+        ms: 1300, logColor: 'blue', logMsg: '세금계산서 2건 수정 발행 완료',
+      },
+      {
+        key: 'receipt', icon: 'ti-coin', title: '수납 내역 취소',
+        desc: '청구에 연결된 수납 및 원장 연동을 취소합니다.',
+        guide: '현금영수증·세금계산서 취소 완료 후 수납 원장 연동을 해제합니다.',
+        doneTip: '수납 5건 및 원장 연동이 취소되었습니다.',
+        badge: '원장 연동 해제', doneBadge: '정리 완료',
+        items: [
+          { id: 'RCP-0811', label: '수납 · ₩2,600,000', status: '수납' },
+          { id: 'RCP-0812', label: '수납 · ₩2,200,000', status: '수납' },
+          { id: 'RCP-0813', label: '수납 · ₩1,800,000', status: '수납' },
+          { id: 'RCP-0814', label: '수납 · ₩1,200,000', status: '수납' },
+          { id: 'RCP-0815', label: '수납 · ₩900,000',   status: '수납' },
+        ],
+        ms: 1200, logColor: 'orange', logMsg: '수납 데이터 5건 취소 처리',
+      },
+      {
+        key: 'bill', icon: 'ti-notes', title: '청구 데이터 삭제',
+        desc: '해당 계약의 청구 내역을 역추적하여 삭제합니다.',
+        guide: '수납 취소 완료 후 청구 데이터를 역추적하여 삭제 처리합니다.',
+        doneTip: '청구 데이터 7건이 삭제되었습니다.',
+        badge: '역추적 삭제', doneBadge: '삭제 완료',
+        items: [
+          { id: 'BILL-0401', label: '청구 · ₩2,600,000', status: '청구' },
+          { id: 'BILL-0402', label: '청구 · ₩2,200,000', status: '청구' },
+          { id: 'BILL-0403', label: '청구 · ₩1,800,000', status: '청구' },
+          { id: 'BILL-0404', label: '청구 · ₩1,200,000', status: '청구' },
+          { id: 'BILL-0405', label: '청구 · ₩900,000',   status: '청구' },
+          { id: 'BILL-0406', label: '청구 · ₩600,000',   status: '청구' },
+          { id: 'BILL-0407', label: '청구 · ₩400,000',   status: '청구' },
+        ],
+        ms: 1100, logColor: 'orange', logMsg: '청구 데이터 7건 삭제 완료',
+      },
+      {
+        key: 'master', icon: 'ti-lock-open', title: '계약 잠금 해제',
+        desc: '계약 마스터를 복원하고 만료 잠금을 해제합니다.',
+        guide: '모든 종속 데이터 처리 후 계약 상태를 정상으로 복원합니다.',
+        doneTip: '계약이 초기화되고 잠금이 해제되었습니다.',
+        badge: '마스터 복원', doneBadge: '해제 완료',
+        items: [
+          { id: 'CONT-2024-00892', label: '계약 마스터 · 만료 잠금', status: '잠금' },
+          { id: 'ROOM-B502',       label: '호실 상태 · 공실 처리',    status: '점유' },
+        ],
+        ms: 900, logColor: 'green', logMsg: '계약 잠금 해제 · 마스터 복원 완료',
+      },
+    ],
+  },
+  'CONT-2023-00441': {
+    name: '(주)한라테크', addr: '서울시 서초구 방배동 A동 301호',
+    period: '2021.06.01 ~ 2023.12.31', expiry: '2023.12.31',
+    deposit: '₩ 30,000,000', lastChg: '2024-01-05 14:30',
+    steps: [
+      {
+        key: 'cash', icon: 'ti-receipt', title: '현금영수증 취소',
+        desc: '발급된 현금영수증을 국세청에 자동 취소합니다.',
+        guide: '수납 취소 전 현금영수증을 먼저 자진취소 API로 처리해야 합니다.',
+        doneTip: '현금영수증 1건이 처리되었습니다.', badge: '자진취소 API', doneBadge: '취소 완료',
+        items: [{ id: 'CR-2023-001', label: '현금영수증 · ₩500,000', status: '발급' }],
+        ms: 1100, logColor: 'blue', logMsg: '현금영수증 1건 취소 완료',
+      },
+      {
+        key: 'tax', icon: 'ti-file-invoice', title: '세금계산서 취소',
+        desc: '발행된 세금계산서를 수정·취소 처리합니다.',
+        guide: '국세청 승인번호 확인 후 수정 세금계산서를 발행합니다.',
+        doneTip: '세금계산서 1건 처리 완료.', badge: '수정계산서 발행', doneBadge: '취소 완료',
+        items: [{ id: 'TAX-2023-031', label: '세금계산서 · ₩1,100,000', status: '승인' }],
+        ms: 1000, logColor: 'blue', logMsg: '세금계산서 1건 처리 완료',
+      },
+      {
+        key: 'receipt', icon: 'ti-coin', title: '수납 내역 취소',
+        desc: '청구에 연결된 수납 및 원장 연동을 취소합니다.',
+        guide: '현금영수증·세금계산서 취소 후 수납 원장 연동을 해제합니다.',
+        doneTip: '수납 3건 취소 완료.', badge: '원장 연동 해제', doneBadge: '정리 완료',
+        items: [
+          { id: 'RCP-1201', label: '수납 · ₩1,100,000', status: '수납' },
+          { id: 'RCP-1202', label: '수납 · ₩900,000',   status: '수납' },
+          { id: 'RCP-1203', label: '수납 · ₩500,000',   status: '수납' },
+        ],
+        ms: 1000, logColor: 'orange', logMsg: '수납 데이터 3건 취소',
+      },
+      {
+        key: 'bill', icon: 'ti-notes', title: '청구 데이터 삭제',
+        desc: '해당 계약의 청구 내역을 역추적하여 삭제합니다.',
+        guide: '수납 취소 완료 후 청구 데이터를 역추적하여 삭제합니다.',
+        doneTip: '청구 데이터 4건 삭제 완료.', badge: '역추적 삭제', doneBadge: '삭제 완료',
+        items: [
+          { id: 'BILL-1201', label: '청구 · ₩1,100,000', status: '청구' },
+          { id: 'BILL-1202', label: '청구 · ₩900,000',   status: '청구' },
+          { id: 'BILL-1203', label: '청구 · ₩500,000',   status: '청구' },
+          { id: 'BILL-1204', label: '청구 · ₩200,000',   status: '청구' },
+        ],
+        ms: 900, logColor: 'orange', logMsg: '청구 데이터 4건 삭제',
+      },
+      {
+        key: 'master', icon: 'ti-lock-open', title: '계약 잠금 해제',
+        desc: '계약 마스터를 복원하고 만료 잠금을 해제합니다.',
+        guide: '모든 종속 데이터 처리 후 계약 상태를 복원합니다.',
+        doneTip: '계약 잠금 해제 완료.', badge: '마스터 복원', doneBadge: '해제 완료',
+        items: [
+          { id: 'CONT-2023-00441', label: '계약 마스터 · 만료 잠금', status: '잠금' },
+          { id: 'ROOM-A301',       label: '호실 상태 · 공실 처리',    status: '점유' },
+        ],
+        ms: 800, logColor: 'green', logMsg: '계약 잠금 해제 완료',
+      },
+    ],
+  },
+};
+
+/* ──────────────────────────────────────────
+   STATE
+────────────────────────────────────────── */
+let S = {
+  contractId: 'CONT-2024-00892',
+  stepStatus: {},   // key → 'pending'|'active'|'done'
+  openDetail: null, // key of open detail
+  currentIdx: -1,
+  isPlaying: false,
+  playTimer: null,
+  logs: [],
+  totalItems: 0,
+  doneItems: 0,
+  startTime: null,
+  elapsed: 0,
+  elapsedTimer: null,
+};
+
+/* ──────────────────────────────────────────
+   INIT
+────────────────────────────────────────── */
+function init(id) {
+  const data = CONTRACTS[id];
+  if (!data) { showToast('등록되지 않은 계약번호입니다.'); return; }
+
+  // stop any running simulation
+  if (S.isPlaying) pausePlay();
+  if (S.playTimer) clearTimeout(S.playTimer);
+  if (S.elapsedTimer) clearInterval(S.elapsedTimer);
+
+  S.contractId = id;
+  S.stepStatus = {};
+  S.openDetail = null;
+  S.currentIdx = -1;
+  S.isPlaying  = false;
+  S.logs       = [];
+  S.totalItems = data.steps.reduce((a, s) => a + s.items.length, 0);
+  S.doneItems  = 0;
+  S.startTime  = null;
+  S.elapsed    = 0;
+
+  data.steps.forEach(s => S.stepStatus[s.key] = 'pending');
+
+  // contract card
+  document.getElementById('cc-id').textContent     = '계약번호 ' + id;
+  document.getElementById('cc-name').textContent   = data.name;
+  document.getElementById('cc-addr').textContent   = data.addr;
+  document.getElementById('cc-period').textContent = data.period;
+  document.getElementById('cc-expiry').textContent = data.expiry;
+  document.getElementById('cc-deposit').textContent= data.deposit;
+  document.getElementById('cc-lastChg').textContent= data.lastChg;
+
+  // pipeline reset
+  ['pl-1','pl-2'].forEach(id => {
+    const el = document.getElementById(id);
+    el.className = 'pl-step done';
+    el.querySelector('.pls-num').innerHTML = '<i class="ti ti-check"></i>';
+  });
+  resetPipelineStep('pl-3', 3, 'active');
+  resetPipelineStep('pl-4', 4, '');
+
+  // stats
+  document.getElementById('statTotal').textContent = data.steps.length;
+  document.getElementById('statItems').textContent = '0';
+
+  // play btn reset
+  setBtnPlay(false);
+
+  renderSteps();
+  renderUnlock();
+  renderLog();
+  updateProgress();
+}
+
+function resetPipelineStep(elId, num, cls) {
+  const el = document.getElementById(elId);
+  el.className = 'pl-step' + (cls ? ' ' + cls : '');
+  el.querySelector('.pls-num').textContent = num;
+}
+
+/* ──────────────────────────────────────────
+   RENDER STEPS
+────────────────────────────────────────── */
+function renderSteps() {
+  const data = CONTRACTS[S.contractId];
+  document.getElementById('stepsList').innerHTML = data.steps.map((step, i) => {
+    const st  = S.stepStatus[step.key];
+    const cls = st === 'active' ? 'active' : st === 'done' ? 'done' : '';
+    const isOpen = S.openDetail === step.key;
+    const doneCount = st === 'done' ? step.items.length : 0;
+
+    return `
+    <div class="step-item ${cls} ${isOpen ? 'open' : ''}" id="si-${step.key}">
+      <div class="step-row" data-key="${step.key}">
+        <div class="si-icon"><i class="ti ${st === 'done' ? 'ti-check' : step.icon}"></i></div>
+        <div class="si-body">
+          <div class="si-title">${step.title}</div>
+          <div class="si-desc">${st === 'done' ? step.doneTip : step.desc}</div>
+        </div>
+        <div class="si-right">
+          <div class="si-badge">${st === 'done' ? step.doneBadge : st === 'active' ? '처리 중' : step.badge}</div>
+          <div class="si-count">${step.items.length}건${doneCount > 0 ? ' · 완료' : ''}</div>
+          <div class="si-chevron"><i class="ti ti-chevron-down"></i></div>
+        </div>
+      </div>
+      <div class="step-detail ${isOpen ? 'open' : ''}" id="sd-${step.key}">
+        <div class="sd-inner">
+          <div class="data-items" id="di-${step.key}">
+            ${renderDataItems(step, st)}
+          </div>
+          <div class="sd-guide ${st === 'done' ? 'done' : ''}">
+            <i class="ti ${st === 'done' ? 'ti-circle-check' : 'ti-info-circle'}"></i>
+            <span>${st === 'done' ? step.doneTip : step.guide}</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderDataItems(step, st) {
+  return step.items.map((item, idx) => {
+    const itemSt = getItemStatus(step.key, idx);
+    const cls = itemSt === 'done' ? 'done' : itemSt === 'processing' ? 'processing' : '';
+    const statusLabel = itemSt === 'done' ? '취소 완료' : itemSt === 'processing' ? '처리 중' : item.status;
+    const time = itemSt === 'done' ? (S.itemTimes?.[step.key]?.[idx] || '') : '';
+    return `<div class="data-item ${cls}" id="di-${step.key}-${idx}">
+      <div class="di-dot"></div>
+      <div class="di-id">${item.id}</div>
+      <div class="di-label">${item.label}</div>
+      <div class="di-status">${statusLabel}</div>
+      <div class="di-time">${time}</div>
+    </div>`;
+  }).join('');
+}
+
+function getItemStatus(key, idx) {
+  const st = S.stepStatus[key];
+  if (st === 'done') return 'done';
+  if (st === 'active') return 'processing';
+  return 'pending';
+}
+
+/* ──────────────────────────────────────────
+   TOGGLE DETAIL
+────────────────────────────────────────── */
+function toggleDetail(key) {
+  if (S.openDetail === key) {
+    S.openDetail = null;
+  } else {
+    S.openDetail = key;
+  }
+  // update open state without full re-render
+  CONTRACTS[S.contractId].steps.forEach(s => {
+    const el   = document.getElementById('si-' + s.key);
+    const det  = document.getElementById('sd-' + s.key);
+    const isMe = s.key === S.openDetail;
+    el.classList.toggle('open', isMe);
+    det.classList.toggle('open', isMe);
+  });
+}
+
+/* ──────────────────────────────────────────
+   PLAYBACK
+────────────────────────────────────────── */
+function startPlay() {
+  if (S.currentIdx >= CONTRACTS[S.contractId].steps.length - 1) return;
+  S.isPlaying = true;
+  setBtnPlay(true);
+  if (!S.startTime) {
+    S.startTime = Date.now();
+    S.elapsedTimer = setInterval(() => {
+      S.elapsed = Math.floor((Date.now() - S.startTime) / 1000);
+      document.getElementById('statTime').textContent = S.elapsed + 's';
+    }, 1000);
+  }
+  runNext();
+}
+
+function pausePlay() {
+  S.isPlaying = false;
+  if (S.playTimer) { clearTimeout(S.playTimer); S.playTimer = null; }
+  setBtnPlay(false);
+}
+
+function setBtnPlay(playing) {
+  const btn = document.getElementById('btnPlay');
+  if (playing) {
+    btn.innerHTML = '<i class="ti ti-player-pause"></i> 일시 정지';
+    btn.classList.add('primary');
+  } else {
+    btn.innerHTML = '<i class="ti ti-player-play"></i> 자동 실행';
+    btn.classList.add('primary');
+  }
+}
+
+async function runNext() {
+  const steps = CONTRACTS[S.contractId].steps;
+  S.currentIdx++;
+  if (S.currentIdx >= steps.length) {
+    pausePlay();
+    onAllDone();
+    return;
+  }
+  await executeStep(S.currentIdx);
+  if (S.isPlaying) {
+    S.playTimer = setTimeout(runNext, 300);
+  }
+}
+
+function stepManual() {
+  if (S.isPlaying) return;
+  if (!S.startTime) {
+    S.startTime = Date.now();
+    S.elapsedTimer = setInterval(() => {
+      S.elapsed = Math.floor((Date.now() - S.startTime) / 1000);
+      document.getElementById('statTime').textContent = S.elapsed + 's';
+    }, 1000);
+  }
+  S.currentIdx++;
+  const steps = CONTRACTS[S.contractId].steps;
+  if (S.currentIdx >= steps.length) {
+    onAllDone();
+    return;
+  }
+  executeStep(S.currentIdx);
+}
+
+function executeStep(idx) {
+  const steps = CONTRACTS[S.contractId].steps;
+  const step  = steps[idx];
+
+  return new Promise(resolve => {
+    S.stepStatus[step.key] = 'active';
+    S.openDetail = step.key;  // auto-expand
+    S.itemTimes  = S.itemTimes || {};
+    S.itemTimes[step.key] = {};
+
+    renderSteps();
+    updateProgress();
+
+    // scroll to active step
+    setTimeout(() => {
+      const el = document.getElementById('si-' + step.key);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 80);
+
+    // animate data items one by one
+    const itemDelay = Math.floor(step.ms * 0.6 / step.items.length);
+    step.items.forEach((item, i) => {
+      setTimeout(() => {
+        const ts = nowTime();
+        S.itemTimes[step.key][i] = ts;
+        // update individual item DOM directly (fast, no full re-render)
+        const diEl = document.getElementById(`di-${step.key}-${i}`);
+        if (diEl) {
+          diEl.classList.remove('processing');
+          diEl.classList.add('done');
+          diEl.querySelector('.di-status').textContent = '취소 완료';
+          diEl.querySelector('.di-time').textContent   = ts;
+        }
+      }, itemDelay * i + 200);
+    });
+
+    // complete step
+    setTimeout(() => {
+      S.stepStatus[step.key] = 'done';
+      S.doneItems += step.items.length;
+      document.getElementById('statItems').textContent = S.doneItems;
+
+      addLog(step.logColor, step.logMsg);
+      renderSteps();
+      updateProgress();
+      updatePipeline(idx, steps.length);
+      renderUnlock();
+      resolve();
+    }, step.ms);
+  });
+}
+
+function updatePipeline(doneIdx, total) {
+  if (doneIdx >= total - 1) {
+    // all done → step 3 done, step 4 done
+    setPl('pl-3', 'done', '<i class="ti ti-check"></i>');
+    setPl('pl-4', 'done', '<i class="ti ti-check"></i>');
+  } else {
+    // step 3 active (in progress)
+    setPl('pl-3', 'active', '3');
+    setPl('pl-4', '', '4');
+  }
+}
+
+function setPl(id, cls, numHtml) {
+  const el = document.getElementById(id);
+  el.className = 'pl-step' + (cls ? ' ' + cls : '');
+  el.querySelector('.pls-num').innerHTML = numHtml;
+}
+
+function onAllDone() {
+  if (S.elapsedTimer) { clearInterval(S.elapsedTimer); S.elapsedTimer = null; }
+  updateProgress();
+  renderUnlock(true);
+  document.getElementById('pct').textContent = '100%';
+  document.getElementById('pcFill').classList.add('done');
+  document.getElementById('statDone').textContent = CONTRACTS[S.contractId].steps.length;
+  showToast('모든 취소 처리가 완료되었습니다! 잠금 해제 버튼을 눌러주세요.');
+}
+
+/* ──────────────────────────────────────────
+   PROGRESS
+────────────────────────────────────────── */
+function updateProgress() {
+  const steps = CONTRACTS[S.contractId].steps;
+  const done  = steps.filter(s => S.stepStatus[s.key] === 'done').length;
+  const pct   = Math.round(done / steps.length * 100);
+
+  document.getElementById('pcFill').style.width = pct + '%';
+  document.getElementById('pct').textContent    = pct + '%';
+  document.getElementById('statDone').textContent = done;
+}
+
+/* ──────────────────────────────────────────
+   UNLOCK
+────────────────────────────────────────── */
+function renderUnlock(ready) {
+  const btn  = document.getElementById('btnUnlock');
+  const hint = document.getElementById('unlockHint');
+  if (ready) {
+    btn.className = 'btn-unlock ready';
+    btn.innerHTML = '<i class="ti ti-lock-open"></i> 계약만료 잠금 해제';
+    hint.textContent = '모든 처리가 완료되었습니다. 버튼을 눌러 잠금을 해제하세요.';
+  } else {
+    const steps = CONTRACTS[S.contractId].steps;
+    const done  = steps.filter(s => S.stepStatus[s.key] === 'done').length;
+    if (done === steps.length) renderUnlock(true);
+  }
+}
+
+function doUnlock() {
+  const btn = document.getElementById('btnUnlock');
+  if (!btn.classList.contains('ready')) return;
+
+  const data = CONTRACTS[S.contractId];
+  document.getElementById('m-contId').textContent = S.contractId;
+  document.getElementById('m-name').textContent   = data.name;
+  document.getElementById('m-time').textContent   = formatNow();
+  document.getElementById('m-items').textContent  = S.totalItems + '건 처리 완료';
+
+  document.getElementById('modalBd').style.display = 'flex';
+}
+
+function closeModal() {
+  document.getElementById('modalBd').style.display = 'none';
+  const btn  = document.getElementById('btnUnlock');
+  btn.className = 'btn-unlock complete';
+  btn.innerHTML = '<i class="ti ti-check"></i> 잠금 해제 완료';
+  addLog('green', '계약만료 잠금 해제 완료 — ' + S.contractId);
+  renderLog();
+}
+
+/* ──────────────────────────────────────────
+   LOG
+────────────────────────────────────────── */
+function addLog(color, msg) {
+  S.logs.push({ color, msg, time: nowTime() });
+  renderLog();
+}
+
+function renderLog() {
+  const body = document.getElementById('logBody');
+  if (!S.logs.length) {
+    body.innerHTML = '<div class="log-empty">처리 완료 항목이 기록됩니다.</div>';
+    return;
+  }
+  body.innerHTML = [...S.logs].reverse().map(l =>
+    `<div class="log-entry">
+      <div class="le-dot ${l.color}"></div>
+      <span class="le-time">${l.time}</span>
+      <span class="le-msg">${l.msg}</span>
+    </div>`
+  ).join('');
+  body.scrollTop = 0;
+}
+
+/* ──────────────────────────────────────────
+   UTILS
+────────────────────────────────────────── */
+function pad(n) { return String(n).padStart(2, '0'); }
+function nowTime() {
+  const d = new Date();
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+function formatNow() {
+  const d = new Date();
+  return `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())} ${nowTime()}`;
+}
+
+let _toastTimer;
+function showToast(msg) {
+  if (_toastTimer) { clearTimeout(_toastTimer); document.querySelector('.toast')?.remove(); }
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.innerHTML = `<i class="ti ti-info-circle"></i> ${msg}`;
+  document.body.appendChild(t);
+  _toastTimer = setTimeout(() => {
+    t.style.transition = 'opacity .4s'; t.style.opacity = '0';
+    setTimeout(() => t.remove(), 400);
+  }, 3000);
+}
+
+/* ──────────────────────────────────────────
+   EVENTS
+────────────────────────────────────────── */
+document.getElementById('searchBtn').addEventListener('click', () => {
+  const v = document.getElementById('searchInput').value.trim().toUpperCase();
+  init(v);
+});
+document.getElementById('searchInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('searchBtn').click();
+});
+
+document.getElementById('btnPlay').addEventListener('click', () => {
+  if (S.isPlaying) pausePlay();
+  else startPlay();
+});
+document.getElementById('btnStep').addEventListener('click', stepManual);
+document.getElementById('btnReset').addEventListener('click', () => {
+  init(S.contractId);
+  showToast('초기화되었습니다.');
+});
+
+document.getElementById('btnUnlock').addEventListener('click', doUnlock);
+document.getElementById('btnModalClose').addEventListener('click', closeModal);
+document.getElementById('modalBd').addEventListener('click', e => {
+  if (e.target === document.getElementById('modalBd')) closeModal();
+});
+document.getElementById('btnClearLog').addEventListener('click', () => {
+  S.logs = [];
+  renderLog();
+});
+
+// step row click → toggle detail
+document.getElementById('stepsList').addEventListener('click', e => {
+  const row = e.target.closest('.step-row');
+  if (!row) return;
+  toggleDetail(row.dataset.key);
+});
+
+/* ──────────────────────────────────────────
+   START
+────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+  S.itemTimes = {};
+  init('CONT-2024-00892');
+});
+</script>
 </body>
 </html>
